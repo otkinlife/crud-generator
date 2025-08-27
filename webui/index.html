@@ -1,0 +1,683 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CRUD Generator - Table Configuration Manager</title>
+    <script src="https://cdn.jsdelivr.net/npm/vue@3/dist/vue.global.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <script src="https://unpkg.com/sql-formatter@4.0.2/dist/sql-formatter.min.js"></script>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <style>
+        .config-editor { 
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace; 
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 6px;
+        }
+        .sidebar { height: 100vh; overflow-y: auto; background-color: #f8f9fa; }
+        .main-content { height: 100vh; overflow-y: auto; }
+        .config-item {
+            cursor: pointer; padding: 12px; margin: 8px 0; border-radius: 6px; 
+            border: 1px solid #dee2e6; transition: all 0.2s;
+        }
+        .config-item:hover { background-color: #e9ecef; transform: translateY(-1px); }
+        .config-item.active { background-color: #fcfcfc; color: #c97171; }
+        .connection-badge { font-size: 0.75em; }
+        
+        /* SQL编辑器样式 */
+        .sql-editor {
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            font-size: 14px;
+            resize: vertical;
+            min-height: 200px;
+        }
+        
+        /* 字段验证样式 */
+        .field-invalid {
+            border-color: #dc3545 !important;
+            background-color: #f8d7da !important;
+        }
+        .field-error {
+            color: #dc3545;
+            font-size: 0.875em;
+            margin-top: 0.25rem;
+        }
+        .fields-info {
+            background-color: #e7f3ff;
+            border: 1px solid #b3d9ff;
+            border-radius: 6px;
+            padding: 10px;
+            margin: 10px 0;
+            font-size: 0.9em;
+        }
+        .field-tag {
+            display: inline-block;
+            background-color: #007bff;
+            color: white;
+            padding: 2px 8px;
+            margin: 2px;
+            border-radius: 12px;
+            font-size: 0.8em;
+        }
+        .cursor-pointer {
+            cursor: pointer;
+        }
+        .sortable-item {
+            cursor: move;
+            transition: all 0.2s;
+        }
+        .sortable-item:hover {
+            background-color: #f8f9fa;
+        }
+        .sortable-item.dragging {
+            opacity: 0.5;
+        }
+        .drag-handle {
+            cursor: move;
+            color: #6c757d;
+            font-size: 1.2em;
+            margin-right: 8px;
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <!-- 登录模态框 -->
+        <div class="modal fade" id="loginModal" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">
+            <div class="modal-dialog modal-sm">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">用户登录</h5>
+                    </div>
+                    <div class="modal-body">
+                        <div v-if="loginError" class="alert alert-danger" role="alert">
+                            {{ loginError }}
+                        </div>
+                        <form @submit.prevent="login">
+                            <div class="mb-3">
+                                <label class="form-label">用户名</label>
+                                <input v-model="loginForm.username" class="form-control" required autofocus>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">密码</label>
+                                <input v-model="loginForm.password" type="password" class="form-control" required>
+                            </div>
+                            <div class="d-grid">
+                                <button type="submit" class="btn btn-primary" :disabled="loggingIn">
+                                    {{ loggingIn ? '登录中...' : '登录' }}
+                                </button>
+                            </div>
+                        </form>
+                        <div class="mt-3 text-muted small">
+                            <p>默认账户:</p>
+                            <p>管理员: admin / admin123</p>
+                            <p>普通用户: user / user123</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 主界面 -->
+        <div v-if="isAuthenticated" class="container-fluid">
+            <div class="row">
+                <!-- 顶部导航 -->
+                <div class="col-12 bg-light border-bottom p-2">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h6 class="mb-0">CRUD Generator</h6>
+                        <div class="d-flex align-items-center">
+                            <span class="me-3 text-muted">欢迎, {{ userInfo.username }}</span>
+                            <button class="btn btn-outline-secondary btn-sm" @click="logout">退出</button>
+                        </div>
+                    </div>
+                </div>
+                <!-- 侧边栏 -->
+                <div class="col-md-3 sidebar p-3">
+                    <div class="d-flex justify-content-between align-items-center mb-4">
+                        <h5 class="mb-0">表配置管理</h5>
+                        <button class="btn btn-primary btn-sm" @click="showConfigModal()" data-bs-toggle="modal" data-bs-target="#configModal">
+                            <i class="bi bi-plus-circle"></i> 新建
+                        </button>
+                    </div>
+                    
+                    <!-- 连接选择 -->
+                    <div class="mb-3">
+                        <label class="form-label small">选择连接:</label>
+                        <select v-model="selectedConnectionId" @change="filterByConnection" class="form-select form-select-sm">
+                            <option value="">全部连接</option>
+                            <option v-for="(conn, id) in connections" :key="id" :value="id">
+                                {{ conn.name }} ({{ conn.db_type }})
+                            </option>
+                        </select>
+                    </div>
+
+                    <!-- 配置列表 -->
+                    <div class="config-list">
+                        <div v-if="filteredConfigs.length === 0" class="text-center text-muted py-4">
+                            <p>暂无配置</p>
+                        </div>
+                        <div v-for="config in filteredConfigs" :key="config.id" 
+                             class="config-item"
+                             :class="{ active: selectedConfig?.id === config.id }"
+                             @click="selectConfig(config)">
+                            <div class="d-flex justify-content-between align-items-start mb-1">
+                                <strong>{{ config.name }}</strong>
+                                <span class="badge connection-badge" 
+                                      :class="config.db_type === 'postgresql' ? 'bg-info' : 'bg-warning'">
+                                    {{ config.db_type }}
+                                </span>
+                            </div>
+                            <small class="text-muted d-block">{{ config.table_name }}</small>
+                            <small class="text-muted">{{ config.connection_name }}</small>
+                            <div class="mt-1">
+                                <span class="badge bg-secondary">v{{ config.version }}</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 主内容区 -->
+                <div class="col-md-9 main-content p-4">
+                    <div v-if="!selectedConfig" class="text-center text-muted mt-5">
+                        <h4>欢迎使用CRUD Generator</h4>
+                        <p>基于JSON配置的安全数据库连接管理</p>
+                        <div class="mt-4">
+                            <h6>功能特性:</h6>
+                            <ul class="list-unstyled">
+                                <li>✅ 数据库连接通过JSON文件安全管理</li>
+                                <li>✅ 支持PostgreSQL和MySQL数据库</li>
+                                <li>✅ 可视化表配置管理</li>
+                                <li>✅ 智能连接池管理</li>
+                                <li>✅ SQL语法高亮和字段解析</li>
+                                <li>✅ 智能字段验证</li>
+                            </ul>
+                        </div>
+                        <small class="text-muted">请从左侧选择一个配置进行编辑，或创建新的配置</small>
+                    </div>
+
+                    <!-- 配置编辑界面 -->
+                    <div v-if="selectedConfig">
+                        <div class="d-flex justify-content-between align-items-center mb-4">
+                            <div>
+                                <h4>{{ selectedConfig.name }}</h4>
+                                <small class="text-muted">连接: {{ selectedConfig.connection_name }} | 表: {{ selectedConfig.table_name }}</small>
+                            </div>
+                            <div>
+                                <button class="btn btn-outline-info me-2" @click="testConnection(selectedConfig.connection_id)">
+                                    测试连接
+                                </button>
+                                <button class="btn btn-outline-warning me-2" @click="testConfigConnection(selectedConfig.id)">
+                                    测试表访问
+                                </button>
+                                <button class="btn btn-primary me-2" 
+                                        @click="saveConfig" 
+                                        :disabled="saving || validationErrors.length > 0">
+                                    {{ saving ? '保存中...' : '保存' }}
+                                </button>
+                                <button class="btn btn-danger" @click="deleteConfig">删除</button>
+                            </div>
+                        </div>
+
+                        <div v-if="message" class="alert" :class="messageType === 'success' ? 'alert-success' : 'alert-danger'" role="alert">
+                            {{ message }}
+                        </div>
+
+                        <!-- 配置表单 -->
+                        <form @submit.prevent="saveConfig">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label class="form-label">配置名称 *</label>
+                                        <input v-model="selectedConfig.name" class="form-control" required>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label class="form-label">表名 *</label>
+                                        <input v-model="selectedConfig.table_name" class="form-control" required>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label class="form-label">数据库连接 *</label>
+                                        <select v-model="selectedConfig.connection_id" class="form-control" required>
+                                            <option v-for="(conn, id) in connections" :key="id" :value="id">
+                                                {{ conn.name }} ({{ conn.db_type }})
+                                            </option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label class="form-label">标签</label>
+                                        <input v-model="selectedConfig.tags" class="form-control" placeholder="用逗号分隔">
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="mb-3">
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <label class="form-label">建表语句 *</label>
+                                    <button type="button" class="btn btn-outline-secondary btn-sm" @click="formatSQL('selectedConfig')">
+                                        <i class="bi bi-code-square"></i> 格式化SQL
+                                    </button>
+                                </div>
+                                <textarea 
+                                    v-model="selectedConfig.create_statement" 
+                                    @input="onCreateStatementChange"
+                                    class="form-control sql-editor" 
+                                    rows="8" 
+                                    placeholder="请输入CREATE TABLE语句..."></textarea>
+                                <div v-if="sqlFields.length > 0" class="fields-info">
+                                    <strong>解析到的字段：</strong>
+                                    <span v-for="field in sqlFields" :key="field.name" class="field-tag">
+                                        {{ field.name }} ({{ field.type }})
+                                    </span>
+                                </div>
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label">描述</label>
+                                <textarea v-model="selectedConfig.description" class="form-control" rows="2"></textarea>
+                            </div>
+
+                            <!-- 查询配置 -->
+                            <div class="card mb-3">
+                                <div class="card-header">
+                                    <h6 class="mb-0">查询配置</h6>
+                                </div>
+                                <div class="card-body">
+                                    <div class="form-check mb-3">
+                                        <input v-model="selectedConfig.query_pagination" class="form-check-input" type="checkbox" id="pagination">
+                                        <label class="form-check-label" for="pagination">启用分页</label>
+                                    </div>
+                                    
+                                    <div class="mb-3">
+                                        <label class="form-label">
+                                            展示字段配置 
+                                            <span class="badge bg-info ms-1 cursor-pointer" 
+                                                  title="配置列表页面显示的字段和标签" 
+                                                  data-bs-toggle="tooltip" 
+                                                  data-bs-placement="top">?</span>
+                                        </label>
+                                        <div class="border rounded p-3">
+                                            <div v-for="(field, index) in selectedConfig.displayFields" :key="'display-' + index" 
+                                                 class="row mb-2 sortable-item" 
+                                                 draggable="true"
+                                                 @dragstart="onDragStart($event, index, 'displayFields')"
+                                                 @dragover="onDragOver($event)"
+                                                 @drop="onDrop($event, index, 'displayFields')">
+                                                <div class="col-md-auto d-flex align-items-center">
+                                                    <span class="drag-handle">⋮⋮</span>
+                                                </div>
+                                                <div class="col-md-3">
+                                                    <select v-model="field.field" 
+                                                            :class="['form-control', 'form-control-sm', {'field-invalid': !isValidField(field.field)}]"
+                                                            @change="validateFields">
+                                                        <option value="">选择字段</option>
+                                                        <option v-for="sqlField in sqlFields" :key="sqlField.name" :value="sqlField.name">
+                                                            {{ sqlField.name }} ({{ sqlField.type }})
+                                                        </option>
+                                                    </select>
+                                                    <div v-if="!isValidField(field.field) && field.field" class="field-error">
+                                                        字段不存在于建表语句中
+                                                    </div>
+                                                </div>
+                                                <div class="col-md-3">
+                                                    <input v-model="field.label" class="form-control form-control-sm" placeholder="显示标签">
+                                                </div>
+                                                <div class="col-md-2">
+                                                    <input v-model.number="field.width" type="number" class="form-control form-control-sm" placeholder="宽度">
+                                                </div>
+                                                <div class="col-md-2">
+                                                    <div class="form-check form-check-inline">
+                                                        <input v-model="field.sortable" class="form-check-input" type="checkbox" :id="'sortable-' + index">
+                                                        <label class="form-check-label" :for="'sortable-' + index">可排序</label>
+                                                    </div>
+                                                </div>
+                                                <div class="col-md-1">
+                                                    <button type="button" class="btn btn-outline-danger btn-sm" @click="removeDisplayField(index)">×</button>
+                                                </div>
+                                            </div>
+                                            <button type="button" class="btn btn-outline-primary btn-sm" @click="addDisplayField()">+ 添加展示字段</button>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="mb-3">
+                                        <label class="form-label">
+                                            搜索字段配置 
+                                            <span class="badge bg-info ms-1 cursor-pointer" 
+                                                  title="配置列表页面的搜索过滤字段。字典来源配置：
+                                                  
+🔹 无字典：不提供下拉选择
+🔹 字段查询：选择字段名，自动查询该字段的所有不重复值
+🔹 自定义：手动输入选项，每行一个
+🔹 JSON配置：高级模式，格式如下：
+{
+  &quot;table&quot;: &quot;表名&quot;,
+  &quot;field&quot;: &quot;字段名&quot;,
+  &quot;sort_order&quot;: &quot;ASC或DESC&quot;,
+  &quot;where&quot;: &quot;查询条件(可选)&quot;
+}
+
+示例：{&quot;table&quot;:&quot;users&quot;,&quot;field&quot;:&quot;status&quot;,&quot;sort_order&quot;:&quot;ASC&quot;}" 
+                                                  data-bs-toggle="tooltip" 
+                                                  data-bs-placement="top">?</span>
+                                        </label>
+                                        <div class="border rounded p-3">
+                                            <div v-for="(field, index) in selectedConfig.searchFields" :key="'search-' + index" class="row mb-2">
+                                                <div class="col-md-3">
+                                                    <select v-model="field.field" 
+                                                            :class="['form-control', 'form-control-sm', {'field-invalid': !isValidField(field.field)}]"
+                                                            @change="validateFields">
+                                                        <option value="">选择字段</option>
+                                                        <option v-for="sqlField in sqlFields" :key="sqlField.name" :value="sqlField.name">
+                                                            {{ sqlField.name }} ({{ sqlField.type }})
+                                                        </option>
+                                                    </select>
+                                                    <div v-if="!isValidField(field.field) && field.field" class="field-error">
+                                                        字段不存在于建表语句中
+                                                    </div>
+                                                </div>
+                                                <div class="col-md-2">
+                                                    <input v-model="field.label" class="form-control form-control-sm" placeholder="展示名">
+                                                </div>
+                                                <div class="col-md-3">
+                                                    <select v-model="field.type" class="form-control form-control-sm">
+                                                        <option value="fuzzy">模糊搜索</option>
+                                                        <option value="exact">精确匹配</option>
+                                                        <option value="range">范围搜索</option>
+                                                        <option value="single">单选</option>
+                                                        <option value="multi_select">多选</option>
+                                                        <option value="date_range">日期范围</option>
+                                                    </select>
+                                                </div>
+                                                <div class="col-md-3">
+                                                    <select v-model="field.dict_source_type" class="form-control form-control-sm" @change="onDictSourceTypeChange(field, index)">
+                                                        <option value="">无字典</option>
+                                                        <option v-for="sqlField in sqlFields" :key="'dict-' + sqlField.name" :value="sqlField.name">
+                                                            {{ sqlField.name }} ({{ sqlField.type }})
+                                                        </option>
+                                                        <option value="custom">自定义</option>
+                                                    </select>
+                                                    <textarea v-if="field.dict_source_type === 'custom'" 
+                                                              v-model="field.dict_source" 
+                                                              class="form-control form-control-sm mt-1" 
+                                                              rows="3"
+                                                              placeholder="输入JSON配置或自定义字典项（每行一个）"></textarea>
+                                                </div>
+                                                <div class="col-md-1">
+                                                    <button type="button" class="btn btn-outline-danger btn-sm" @click="removeSearchField(index)">×</button>
+                                                </div>
+                                            </div>
+                                            <button type="button" class="btn btn-outline-primary btn-sm" @click="addSearchField()">+ 添加搜索字段</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- 创建配置 -->
+                            <div class="card mb-3">
+                                <div class="card-header">
+                                    <h6 class="mb-0">创建配置</h6>
+                                </div>
+                                <div class="card-body">
+                                    <div class="mb-3">
+                                        <label class="form-label">
+                                            可创建字段 
+                                            <span class="badge bg-info ms-1 cursor-pointer" 
+                                                  title="配置在新增表单中显示的字段" 
+                                                  data-bs-toggle="tooltip" 
+                                                  data-bs-placement="top">?</span>
+                                        </label>
+                                        <div class="border rounded p-3">
+                                            <div v-if="selectedConfig.creatableFields && selectedConfig.creatableFields.length === 0" class="text-muted text-center py-3">
+                                                请先输入建表语句以自动生成字段配置
+                                            </div>
+                                            <div v-for="(field, index) in selectedConfig.creatableFields" :key="'creatable-' + index" 
+                                                 class="row mb-3 border-bottom pb-3 sortable-item"
+                                                 draggable="true"
+                                                 @dragstart="onDragStart($event, index, 'creatableFields')"
+                                                 @dragover="onDragOver($event)"
+                                                 @drop="onDrop($event, index, 'creatableFields')">
+                                                <div class="col-md-auto d-flex align-items-center">
+                                                    <span class="drag-handle">⋮⋮</span>
+                                                </div>
+                                                <div class="col-md-1">
+                                                    <label class="form-label small">字段</label>
+                                                    <input v-model="field.field" class="form-control form-control-sm" readonly>
+                                                </div>
+                                                <div class="col-md-2">
+                                                    <label class="form-label small">显示标签</label>
+                                                    <input v-model="field.label" class="form-control form-control-sm" placeholder="字段标签">
+                                                </div>
+                                                <div class="col-md-1">
+                                                    <label class="form-label small">输入类型</label>
+                                                    <select v-model="field.type" class="form-control form-control-sm">
+                                                        <option value="text">文本输入</option>
+                                                        <option value="textarea">多行文本</option>
+                                                        <option value="number">数字</option>
+                                                        <option value="date">日期</option>
+                                                        <option value="datetime">日期时间</option>
+                                                        <option value="select">下拉选择</option>
+                                                        <option value="checkbox">复选框</option>
+                                                    </select>
+                                                </div>
+                                                <div class="col-md-2">
+                                                    <label class="form-label small">默认值</label>
+                                                    <select v-model="field.default_type" 
+                                                            class="form-control form-control-sm"
+                                                            :class="{'is-invalid': field.type === 'readonly' && !field.default_type}">
+                                                        <option value="">无默认值</option>
+                                                        <option value="fixed">固定值</option>
+                                                        <option value="auto_increment" v-if="isAutoIncrementSupported(field.field)">自增</option>
+                                                        <option value="current_time">当前时间</option>
+                                                        <option value="uuid">UUID</option>
+                                                    </select>
+                                                    <input v-if="field.default_type === 'fixed'" 
+                                                           v-model="field.default_value" 
+                                                           class="form-control form-control-sm mt-1" 
+                                                           :class="{'is-invalid': field.type === 'readonly' && field.default_type === 'fixed' && !field.default_value}"
+                                                           placeholder="默认值"
+                                                           :required="field.type === 'readonly' && field.default_type === 'fixed'">
+                                                    <div v-if="field.type === 'readonly' && !field.default_type" class="invalid-feedback">
+                                                        不可编辑字段必须配置默认值
+                                                    </div>
+                                                    <div v-if="field.type === 'readonly' && field.default_type === 'fixed' && !field.default_value" class="invalid-feedback">
+                                                        请输入固定默认值
+                                                    </div>
+                                                </div>
+                                                <div class="col-md-1">
+                                                    <label class="form-label small">必填</label>
+                                                    <div class="form-check">
+                                                        <input v-model="field.required" class="form-check-input" type="checkbox" :id="'required-' + index">
+                                                        <label class="form-check-label" :for="'required-' + index">必填</label>
+                                                    </div>
+                                                </div>
+                                                <div class="col-md-1">
+                                                    <label class="form-label small">不可编辑</label>
+                                                    <div class="form-check">
+                                                        <input v-model="field.user_readonly" class="form-check-input" type="checkbox" :id="'user-readonly-' + index">
+                                                        <label class="form-check-label" :for="'user-readonly-' + index">不可编辑</label>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- 更新配置 -->
+                            <div class="card mb-3">
+                                <div class="card-header">
+                                    <h6 class="mb-0">更新配置</h6>
+                                </div>
+                                <div class="card-body">
+                                    <div class="mb-3">
+                                        <label class="form-label">
+                                            可更新字段 
+                                            <span class="badge bg-info ms-1 cursor-pointer" 
+                                                  title="配置在编辑表单中显示的字段" 
+                                                  data-bs-toggle="tooltip" 
+                                                  data-bs-placement="top">?</span>
+                                        </label>
+                                        <div class="border rounded p-3">
+                                            <div v-if="selectedConfig.updatableFields && selectedConfig.updatableFields.length === 0" class="text-muted text-center py-3">
+                                                请先输入建表语句以自动生成字段配置
+                                            </div>
+                                            <div v-for="(field, index) in selectedConfig.updatableFields" :key="'updatable-' + index" 
+                                                 class="row mb-3 border-bottom pb-3"
+                                                 :class="{'sortable-item': !field.is_primary_key}"
+                                                 :draggable="!field.is_primary_key"
+                                                 @dragstart="!field.is_primary_key && onDragStart($event, index, 'updatableFields')"
+                                                 @dragover="!field.is_primary_key && onDragOver($event)"
+                                                 @drop="!field.is_primary_key && onDrop($event, index, 'updatableFields')">
+                                                <div class="col-md-auto d-flex align-items-center">
+                                                    <span v-if="!field.is_primary_key" class="drag-handle">⋮⋮</span>
+                                                    <span v-else class="text-muted" style="width: 16px;">🔒</span>
+                                                </div>
+                                                <div class="col-md-2">
+                                                    <label class="form-label small">字段</label>
+                                                    <input v-model="field.field" class="form-control form-control-sm" readonly>
+                                                    <small v-if="field.is_primary_key" class="text-muted">主键字段</small>
+                                                </div>
+                                                <div class="col-md-2">
+                                                    <label class="form-label small">显示标签</label>
+                                                    <input v-model="field.label" class="form-control form-control-sm" placeholder="字段标签">
+                                                </div>
+                                                <div class="col-md-2">
+                                                    <label class="form-label small">输入类型</label>
+                                                    <select v-model="field.type" class="form-control form-control-sm" :disabled="field.is_primary_key">
+                                                        <option value="text">文本输入</option>
+                                                        <option value="textarea">多行文本</option>
+                                                        <option value="number">数字</option>
+                                                        <option value="date">日期</option>
+                                                        <option value="datetime">日期时间</option>
+                                                        <option value="select">下拉选择</option>
+                                                        <option value="checkbox">复选框</option>
+                                                    </select>
+                                                </div>
+                                                <div class="col-md-2">
+                                                    <label class="form-label small">默认值</label>
+                                                    <select v-model="field.default_type" 
+                                                            class="form-control form-control-sm"
+                                                            :class="{'is-invalid': field.type === 'readonly' && !field.default_type}">
+                                                        <option value="">无默认值</option>
+                                                        <option value="fixed">固定值</option>
+                                                        <option value="auto_increment" v-if="isAutoIncrementSupported(field.field)">自增</option>
+                                                        <option value="current_time">当前时间</option>
+                                                        <option value="uuid">UUID</option>
+                                                    </select>
+                                                    <input v-if="field.default_type === 'fixed'" 
+                                                           v-model="field.default_value" 
+                                                           class="form-control form-control-sm mt-1" 
+                                                           :class="{'is-invalid': field.type === 'readonly' && field.default_type === 'fixed' && !field.default_value}"
+                                                           placeholder="默认值"
+                                                           :required="field.type === 'readonly' && field.default_type === 'fixed'">
+                                                    <div v-if="field.type === 'readonly' && !field.default_type" class="invalid-feedback">
+                                                        不可编辑字段必须配置默认值
+                                                    </div>
+                                                    <div v-if="field.type === 'readonly' && field.default_type === 'fixed' && !field.default_value" class="invalid-feedback">
+                                                        请输入固定默认值
+                                                    </div>
+                                                </div>
+                                                <div class="col-md-1">
+                                                    <label class="form-label small">验证</label>
+                                                    <div class="form-check">
+                                                        <input v-model="field.required" class="form-check-input" type="checkbox" :id="'update-required-' + index" :disabled="field.is_primary_key">
+                                                        <label class="form-check-label" :for="'update-required-' + index">必填</label>
+                                                    </div>
+                                                </div>
+                                                <div class="col-md-1">
+                                                    <label class="form-label small">用户输入</label>
+                                                    <div class="form-check">
+                                                        <input v-model="field.user_input_required" class="form-check-input" type="checkbox" :id="'update-user-input-' + index" :disabled="field.is_primary_key">
+                                                        <label class="form-check-label" :for="'update-user-input-' + index">用户可编辑</label>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 新建配置模态框 -->
+        <div class="modal fade" id="configModal" tabindex="-1">
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">新建表配置</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <form>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label class="form-label">配置名称 *</label>
+                                        <input v-model="newConfig.name" class="form-control" required>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label class="form-label">表名 *</label>
+                                        <input v-model="newConfig.table_name" class="form-control" required>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">数据库连接 *</label>
+                                <select v-model="newConfig.connection_id" class="form-control" required>
+                                    <option value="">请选择连接</option>
+                                    <option v-for="(conn, id) in connections" :key="id" :value="id">
+                                        {{ conn.name }} ({{ conn.db_type }})
+                                    </option>
+                                </select>
+                            </div>
+                            <div class="mb-3">
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <label class="form-label">建表语句 *</label>
+                                    <button type="button" class="btn btn-outline-secondary btn-sm" @click="formatSQL('newConfig')">
+                                        <i class="bi bi-code-square"></i> 格式化SQL
+                                    </button>
+                                </div>
+                                <textarea 
+                                    v-model="newConfig.create_statement" 
+                                    @input="onNewConfigCreateStatementChange"
+                                    class="form-control sql-editor" 
+                                    rows="8" 
+                                    placeholder="请输入CREATE TABLE语句..."></textarea>
+                                <div v-if="newSqlFields.length > 0" class="fields-info">
+                                    <strong>解析到的字段：</strong>
+                                    <span v-for="field in newSqlFields" :key="field.name" class="field-tag">
+                                        {{ field.name }} ({{ field.type }})
+                                    </span>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                        <button type="button" class="btn btn-primary" @click="createConfig" :disabled="creating">
+                            {{ creating ? '创建中...' : '创建' }}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        </div> <!-- 认证主界面结束 -->
+    </div>
+
+    <script src="/webui/app.js"></script>
+</body>
+</html>
