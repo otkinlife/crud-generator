@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
 
@@ -23,6 +24,12 @@ type APIServer struct {
 	router        *gin.Engine
 	configService *services.ConfigService
 	crudService   *services.CRUDService
+	config        *AppConfig
+}
+
+type AppConfig struct {
+	EnableAuth bool `json:"enable_auth"`
+	Port       int  `json:"port"`
 }
 
 type APIResponse struct {
@@ -36,14 +43,41 @@ func NewAPIServer() *APIServer {
 	gin.SetMode(gin.ReleaseMode)
 	router := gin.Default()
 
+	// 加载配置
+	config := loadConfig()
+
 	server := &APIServer{
 		router:        router,
 		configService: services.NewConfigService(),
 		crudService:   services.NewCRUDService(),
+		config:        config,
 	}
 
 	server.setupRoutes()
 	return server
+}
+
+func loadConfig() *AppConfig {
+	config := &AppConfig{
+		EnableAuth: false, // 默认关闭认证
+		Port:       8080,  // 默认端口
+	}
+
+	// 从环境变量读取认证设置
+	if enableAuthStr := os.Getenv("ENABLE_AUTH"); enableAuthStr != "" {
+		if enableAuth, err := strconv.ParseBool(enableAuthStr); err == nil {
+			config.EnableAuth = enableAuth
+		}
+	}
+
+	// 从环境变量读取端口设置
+	if portStr := os.Getenv("PORT"); portStr != "" {
+		if port, err := strconv.Atoi(portStr); err == nil {
+			config.Port = port
+		}
+	}
+
+	return config
 }
 
 func (s *APIServer) setupRoutes() {
@@ -64,16 +98,20 @@ func (s *APIServer) setupRoutes() {
 		c.Next()
 	})
 
-	// 认证相关的公开路由（不需要JWT认证）
-	auth := s.router.Group("/auth")
-	{
-		auth.POST("/login", s.login)
-		auth.POST("/refresh", s.refreshToken)
+	// 认证相关的路由（仅在启用认证时需要）
+	if s.config.EnableAuth {
+		auth := s.router.Group("/auth")
+		{
+			auth.POST("/login", s.login)
+			auth.POST("/refresh", s.refreshToken)
+		}
 	}
 
-	// API路由组，需要JWT认证
+	// API路由组，根据配置决定是否需要JWT认证
 	api := s.router.Group("/api")
-	api.Use(middleware.JWTAuth()) // 应用JWT认证中间件
+	if s.config.EnableAuth {
+		api.Use(middleware.JWTAuth()) // 仅在启用认证时应用JWT认证中间件
+	}
 	{
 		// 数据库连接信息（只读）
 		api.GET("/connections", s.listConnections)
@@ -702,8 +740,16 @@ func main() {
 
 	server := NewAPIServer()
 
-	log.Println("Starting CRUD Generator Web UI on :8080")
-	if err := server.Start(8080); err != nil {
+	log.Printf("Starting CRUD Generator Web UI on :%d", server.config.Port)
+	log.Printf("Authentication enabled: %v", server.config.EnableAuth)
+	if !server.config.EnableAuth {
+		log.Println("✅ Authentication is DISABLED - no login required")
+		log.Println("You can access all features without authentication")
+	} else {
+		log.Println("🔒 Authentication is ENABLED - login required for API access")
+	}
+
+	if err := server.Start(server.config.Port); err != nil {
 		log.Fatal("Failed to start server:", err)
 	}
 }
