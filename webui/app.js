@@ -41,6 +41,7 @@ axios.interceptors.request.use(
         if (tokenData && !AuthManager.isTokenExpired(tokenData)) {
             config.headers.Authorization = `Bearer ${tokenData.token}`;
         }
+        // 不再强制要求 token，让后端决定是否需要认证
         return config;
     },
     error => Promise.reject(error)
@@ -50,9 +51,10 @@ axios.interceptors.response.use(
     response => response,
     error => {
         if (error.response && error.response.status === 401) {
-            // Token无效或过期，清除认证信息并跳转登录
+            // 仅在明确收到 401 错误时才处理认证问题
+            // 清除认证信息并尝试重新认证
             AuthManager.clearAuth();
-            window.location.reload();
+            // 不立即刷新页面，而是让应用处理这个情况
         }
         return Promise.reject(error);
     }
@@ -107,8 +109,8 @@ createApp({
         }
     },
     mounted() {
-        // 检查认证状态
-        this.checkAuth();
+        // 首先检查后端是否启用认证
+        this.checkAuthConfig();
         
         // 初始化Bootstrap tooltips
         this.$nextTick(() => {
@@ -119,6 +121,27 @@ createApp({
         });
     },
     methods: {
+        // 检查后端认证配置
+        async checkAuthConfig() {
+            try {
+                // 尝试直接访问一个API来检查是否需要认证
+                const response = await axios.get('/api/connections');
+                // 如果能直接访问成功，说明无需认证
+                this.isAuthenticated = true;
+                this.userInfo = { username: 'guest', role: 'user' }; // 设置默认用户信息
+                this.loadConnections();
+                this.loadConfigs();
+            } catch (error) {
+                if (error.response && error.response.status === 401) {
+                    // 需要认证
+                    this.checkAuth();
+                } else {
+                    // 其他错误，尝试认证流程
+                    this.checkAuth();
+                }
+            }
+        },
+        
         // 认证相关方法
         checkAuth() {
             const tokenData = AuthManager.getToken();

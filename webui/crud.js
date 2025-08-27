@@ -99,13 +99,8 @@ createApp({
         }
     },
     async mounted() {
-        // 检查认证状态
-        const tokenData = AuthManager.getToken();
-        if (!tokenData || AuthManager.isTokenExpired(tokenData)) {
-            alert('请先登录');
-            window.location.href = '/';
-            return;
-        }
+        // 首先检查后端是否启用认证
+        await this.checkAuthConfig();
         
         // 从URL获取配置名称
         const pathParts = window.location.pathname.split('/');
@@ -119,6 +114,27 @@ createApp({
         this.loading = false;
     },
     methods: {
+        // 检查后端认证配置
+        async checkAuthConfig() {
+            try {
+                // 尝试直接访问一个API来检查是否需要认证
+                await axios.get('/api/connections');
+                // 如果能直接访问成功，说明无需认证
+                return;
+            } catch (error) {
+                if (error.response && error.response.status === 401) {
+                    // 需要认证，检查token
+                    const tokenData = AuthManager.getToken();
+                    if (!tokenData || AuthManager.isTokenExpired(tokenData)) {
+                        alert('请先登录');
+                        window.location.href = '/';
+                        return;
+                    }
+                }
+                // 其他错误忽略，继续执行
+            }
+        },
+        
         async loadConfiguration() {
             try {
                 // 直接根据配置名称获取单个配置，而不是获取所有配置再筛选
