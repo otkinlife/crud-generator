@@ -26,4 +26,4 @@ fi
 echo "✅ Database config file found: $DB_CONFIG_FILE"
 
 # 构建并运行Web UI
-go run cmd/webui/main.go "$@"
+go run cmd/crud-generator/main.go "$@"
