@@ -1,26 +1,26 @@
-# CRUD Generator - Go Package
+# CRUD Generator - Go 包
 
-A powerful and flexible CRUD (Create, Read, Update, Delete) generator for Go applications that provides both programmatic API and embeddable web UI for database operations.
+一个强大且灵活的 Go 应用程序 CRUD（创建、读取、更新、删除）生成器，提供编程 API 和可嵌入的 Web UI 来进行数据库操作。
 
-## Features
+## 特性
 
-- 🚀 **Easy Integration**: Add CRUD functionality to your Go app with just a few lines of code
-- 🎨 **Embeddable Web UI**: Beautiful and responsive web interface that can be embedded in your application
-- 🔧 **Programmatic API**: Full programmatic control over CRUD operations
-- 🗄️ **Multi-Database Support**: PostgreSQL, MySQL support with connection pooling
-- 🛡️ **Authentication Ready**: Built-in JWT authentication (optional)
-- ⚡ **High Performance**: Optimized for production use with GORM
-- 🎛️ **Configurable**: Flexible configuration options for tables, fields, and operations
+- 🚀 **轻松集成**：只需几行代码即可为您的 Go 应用添加 CRUD 功能
+- 🎨 **可嵌入的 Web UI**：美观且响应式的 Web 界面，可嵌入到您的应用程序中
+- 🔧 **编程 API**：对 CRUD 操作的完全编程控制
+- 🗄️ **多数据库支持**：支持 PostgreSQL、MySQL，具备连接池功能
+- 🛡️ **认证就绪**：内置 JWT 认证（可选）
+- ⚡ **高性能**：基于 GORM，为生产环境优化
+- 🎛️ **可配置**：灵活的表、字段和操作配置选项
 
-## Installation
+## 安装
 
 ```bash
-go get github.com/your-org/crud-generator
+go get github.com/otkinlife/crud-generator
 ```
 
-## Quick Start
+## 快速开始
 
-### Basic Usage with Existing Database Connection
+### 使用现有数据库连接的基本用法
 
 ```go
 package main
@@ -30,44 +30,44 @@ import (
     "net/http"
     
     "github.com/gin-gonic/gin"
-    "github.com/your-org/crud-generator"
+    crudgen "github.com/otkinlife/crud-generator"
     "gorm.io/gorm"
 )
 
 func main() {
-    // Assume you have an existing GORM database connection
-    var db *gorm.DB // Your existing database connection
+    // 假设您有一个现有的 GORM 数据库连接
+    var db *gorm.DB // 您现有的数据库连接
     
-    // Create CRUD generator with your database
+    // 使用您的数据库创建 CRUD 生成器
     config := crudgen.DefaultConfig()
-    config.UIBasePath = "/admin"  // Serve UI at /admin
-    config.APIBasePath = "/api/v1"  // API at /api/v1
+    config.UIBasePath = "/admin"   // 在 /admin 提供 UI
+    config.APIBasePath = "/api/v1" // API 在 /api/v1
     
     generator, err := crudgen.NewWithGormDB(db, "main", config)
     if err != nil {
-        log.Fatal("Failed to create CRUD generator:", err)
+        log.Fatal("创建 CRUD 生成器失败：", err)
     }
     defer generator.Close()
     
-    // Create Gin router
+    // 创建 Gin 路由器
     router := gin.Default()
     
-    // Register CRUD routes
+    // 注册 CRUD 路由
     generator.RegisterRoutes(router)
     
-    // Your other routes
+    // 您的其他路由
     router.GET("/", func(c *gin.Context) {
-        c.JSON(200, gin.H{"message": "Hello World"})
+        c.JSON(200, gin.H{"message": "你好世界"})
     })
     
-    // Start server
-    log.Println("Server starting on :8080")
-    log.Printf("CRUD UI available at: http://localhost:8080%s", config.UIBasePath)
+    // 启动服务器
+    log.Println("服务器在 :8080 启动")
+    log.Printf("CRUD UI 可访问地址：http://localhost:8080%s", config.UIBasePath)
     log.Fatal(http.ListenAndServe(":8080", router))
 }
 ```
 
-### Full Configuration Example
+### 完整配置示例
 
 ```go
 package main
@@ -77,11 +77,11 @@ import (
     "net/http"
     
     "github.com/gin-gonic/gin"
-    "github.com/your-org/crud-generator"
+    crudgen "github.com/otkinlife/crud-generator"
 )
 
 func main() {
-    // Create configuration
+    // 创建配置
     config := &crudgen.Config{
         EnableAuth:       true,
         JWTSecret:       "your-secret-key",
@@ -114,14 +114,14 @@ func main() {
         },
     }
     
-    // Create CRUD generator
+    // 创建 CRUD 生成器
     generator, err := crudgen.New(config)
     if err != nil {
-        log.Fatal("Failed to create CRUD generator:", err)
+        log.Fatal("创建 CRUD 生成器失败：", err)
     }
     defer generator.Close()
     
-    // Add table configurations programmatically
+    // 通过编程方式添加表配置
     userTableConfig := &crudgen.TableConfig{
         Name:         "users",
         TableName:    "users",
@@ -137,28 +137,28 @@ func main() {
             )
         `,
         QueryPagination: true,
-        Description: "User management table",
+        Description: "用户管理表",
         IsActive: true,
         Version: 1,
     }
     
     if err := generator.AddTableConfig(userTableConfig); err != nil {
-        log.Printf("Warning: Failed to add user table config: %v", err)
+        log.Printf("警告：添加用户表配置失败：%v", err)
     }
     
-    // Create router and register routes
+    // 创建路由器并注册路由
     router := gin.Default()
     generator.RegisterRoutes(router)
     
-    // Start server
-    log.Println("Server starting on :8080")
-    log.Printf("CRUD Admin UI: http://localhost:8080%s", config.UIBasePath)
-    log.Printf("API Endpoints: http://localhost:8080%s", config.APIBasePath)
+    // 启动服务器
+    log.Println("服务器在 :8080 启动")
+    log.Printf("CRUD 管理 UI：http://localhost:8080%s", config.UIBasePath)
+    log.Printf("API 端点：http://localhost:8080%s", config.APIBasePath)
     log.Fatal(http.ListenAndServe(":8080", router))
 }
 ```
 
-### Programmatic CRUD Operations
+### 编程式 CRUD 操作
 
 ```go
 package main
@@ -167,18 +167,18 @@ import (
     "fmt"
     "log"
     
-    "github.com/your-org/crud-generator"
+    crudgen "github.com/otkinlife/crud-generator"
 )
 
 func main() {
-    // Setup generator (same as above)
+    // 设置生成器（同上）
     generator, err := crudgen.New(config)
     if err != nil {
         log.Fatal(err)
     }
     defer generator.Close()
     
-    // Create a record
+    // 创建记录
     userData := map[string]interface{}{
         "username":  "johndoe",
         "email":     "john@example.com",
@@ -187,17 +187,17 @@ func main() {
     
     createResult, err := generator.Create("users", userData)
     if err != nil {
-        log.Printf("Create failed: %v", err)
-    } else if createResult.Success {
-        fmt.Printf("User created: %+v\n", createResult.Data)
+        log.Printf("创建失败：%v", err)
+    } else if createResult.Success { 
+        fmt.Printf("用户已创建：%+v\n", createResult.Data)
     }
     
-    // List records with pagination and search
+    // 带分页和搜索的列表记录
     listParams := &crudgen.QueryParams{
         Page:     1,
         PageSize: 10,
         Search: map[string]interface{}{
-            "username": "john",  // Search for usernames containing "john"
+            "username": "john", // 搜索包含 "john" 的用户名
         },
         Sort: []crudgen.SortField{
             {Field: "created_at", Order: crudgen.SortOrderDESC},
@@ -206,38 +206,38 @@ func main() {
     
     listResult, err := generator.List("users", listParams)
     if err != nil {
-        log.Printf("List failed: %v", err)
+        log.Printf("列表查询失败：%v", err)
     } else {
-        fmt.Printf("Found %d users (page %d/%d):\n", 
+        fmt.Printf("找到 %d 个用户（第 %d/%d 页）：\n", 
             listResult.Total, listResult.Page, listResult.TotalPages)
         for _, user := range listResult.Data {
             fmt.Printf("  - %s (%s)\n", user["username"], user["email"])
         }
     }
     
-    // Update a record
+    // 更新记录
     updateData := map[string]interface{}{
         "full_name": "John Smith",
     }
     
     updateResult, err := generator.Update("users", 1, updateData)
     if err != nil {
-        log.Printf("Update failed: %v", err)
+        log.Printf("更新失败：%v", err)
     } else if updateResult.Success {
-        fmt.Println("User updated successfully")
+        fmt.Println("用户更新成功")
     }
     
-    // Delete a record
+    // 删除记录
     deleteResult, err := generator.Delete("users", 1)
     if err != nil {
-        log.Printf("Delete failed: %v", err)
+        log.Printf("删除失败：%v", err)
     } else if deleteResult.Success {
-        fmt.Println("User deleted successfully")
+        fmt.Println("用户删除成功")
     }
 }
 ```
 
-### Embedding UI in Existing Application
+### 在现有应用程序中嵌入 UI
 
 ```go
 package main
@@ -246,22 +246,22 @@ import (
     "net/http"
     
     "github.com/gin-gonic/gin"
-    "github.com/your-org/crud-generator"
+    crudgen "github.com/otkinlife/crud-generator"
 )
 
 func main() {
-    // Your existing Gin application
+    // 您现有的 Gin 应用程序
     router := gin.Default()
     
-    // Your existing routes
+    // 您现有的路由
     router.GET("/", homePage)
     router.GET("/dashboard", dashboard)
     
-    // Create CRUD generator
+    // 创建 CRUD 生成器
     config := crudgen.DefaultConfig()
-    config.UIBasePath = "/admin/crud"  // Embed at /admin/crud
-    config.APIBasePath = "/api/admin"   // API at /api/admin
-    config.EnableAuth = false           // Disable auth if you handle it elsewhere
+    config.UIBasePath = "/admin/crud"  // 嵌入到 /admin/crud
+    config.APIBasePath = "/api/admin"  // API 在 /api/admin
+    config.EnableAuth = false          // 如果您在其他地方处理认证，则禁用认证
     
     generator, err := crudgen.NewWithGormDB(yourDB, "main", config)
     if err != nil {
@@ -269,12 +269,12 @@ func main() {
     }
     defer generator.Close()
     
-    // Register only in admin section
+    // 仅在管理员部分注册
     adminGroup := router.Group("/admin")
     {
-        adminGroup.Use(yourAuthMiddleware()) // Your existing auth
+        adminGroup.Use(yourAuthMiddleware()) // 您现有的认证
         
-        // Register CRUD routes under /admin
+        // 在 /admin 下注册 CRUD 路由
         generator.RegisterRoutes(adminGroup)
     }
     
@@ -282,7 +282,7 @@ func main() {
 }
 ```
 
-### API-Only Mode (No UI)
+### 仅 API 模式（无 UI）
 
 ```go
 package main
@@ -290,13 +290,13 @@ package main
 import (
     "net/http"
     
-    "github.com/gin-gonic/gin"
-    "github.com/your-org/crud-generator"
+    "github.com/gin-gonic/gin" 
+    crudgen "github.com/otkinlife/crud-generator"
 )
 
 func main() {
     config := crudgen.DefaultConfig()
-    config.UIEnabled = false  // Disable UI
+    config.UIEnabled = false // 禁用 UI
     config.APIBasePath = "/api/v1"
     
     generator, err := crudgen.New(config)
@@ -307,14 +307,14 @@ func main() {
     
     router := gin.Default()
     
-    // Register only API routes
+    // 仅注册 API 路由
     generator.RegisterAPIRoutes(router)
     
     http.ListenAndServe(":8080", router)
 }
 ```
 
-### Microservice Architecture
+### 微服务架构
 
 ```go
 // crud-service/main.go
@@ -323,7 +323,7 @@ package main
 import (
     "net/http"
     
-    "github.com/your-org/crud-generator"
+    crudgen "github.com/otkinlife/crud-generator"
 )
 
 func main() {
@@ -349,79 +349,79 @@ func main() {
     }
     defer generator.Close()
     
-    // Get HTTP handler for the entire CRUD functionality
+    // 获取整个 CRUD 功能的 HTTP 处理器
     handler := generator.GetFullHandler()
     
-    // Run as standalone service
+    // 作为独立服务运行
     http.ListenAndServe(":8080", handler)
 }
 ```
 
-## API Endpoints
+## API 端点
 
-When you integrate the CRUD generator, it provides the following API endpoints:
+当您集成 CRUD 生成器时，它提供以下 API 端点：
 
-### Configuration Management
+### 配置管理
 
-- `GET /api/configs` - List all table configurations
-- `POST /api/configs` - Create new table configuration  
-- `GET /api/configs/:id` - Get configuration by ID
-- `GET /api/configs/by-name/:name` - Get configuration by name
-- `PUT /api/configs/:id` - Update configuration
-- `DELETE /api/configs/:id` - Delete configuration
+- `GET /api/configs` - 列出所有表配置
+- `POST /api/configs` - 创建新的表配置
+- `GET /api/configs/:id` - 通过 ID 获取配置
+- `GET /api/configs/by-name/:name` - 通过名称获取配置
+- `PUT /api/configs/:id` - 更新配置
+- `DELETE /api/configs/:id` - 删除配置
 
-### Database Operations
+### 数据库操作
 
-- `GET /api/connections` - List database connections
-- `POST /api/connections/:id/test` - Test database connection
+- `GET /api/connections` - 列出数据库连接
+- `POST /api/connections/:id/test` - 测试数据库连接
 
-### CRUD Operations (per configured table)
+### CRUD 操作（每个配置的表）
 
-- `GET /api/:table_name/list` - List records with pagination, search, sorting
-- `POST /api/:table_name/create` - Create new record
-- `PUT /api/:table_name/update/:id` - Update existing record
-- `DELETE /api/:table_name/delete/:id` - Delete record
-- `GET /api/:table_name/dict/:field` - Get dictionary values for field
+- `GET /api/:table_name/list` - 列出记录（支持分页、搜索、排序）
+- `POST /api/:table_name/create` - 创建新记录
+- `PUT /api/:table_name/update/:id` - 更新现有记录
+- `DELETE /api/:table_name/delete/:id` - 删除记录
+- `GET /api/:table_name/dict/:field` - 获取字段的字典值
 
-### Authentication (if enabled)
+### 认证（如果启用）
 
-- `POST /api/auth/login` - User login
-- `POST /api/auth/refresh` - Refresh JWT token
+- `POST /api/auth/login` - 用户登录
+- `POST /api/auth/refresh` - 刷新 JWT 令牌
 
-## Configuration Options
+## 配置选项
 
-### Database Connection
+### 数据库连接
 
 ```go
 type DatabaseConnection struct {
-    Type         string `json:"type"`          // "postgresql" or "mysql"
+    Type         string `json:"type"`          // "postgresql" 或 "mysql"
     Host         string `json:"host"`
     Port         int    `json:"port"`
     Database     string `json:"database"`
     Username     string `json:"username"`
     Password     string `json:"password"`
-    SSLMode      string `json:"ssl_mode"`      // PostgreSQL only
+    SSLMode      string `json:"ssl_mode"`      // 仅 PostgreSQL
     MaxIdleConns int    `json:"max_idle_conns"`
     MaxOpenConns int    `json:"max_open_conns"`
 }
 ```
 
-### Table Configuration
+### 表配置
 
 ```go
 type TableConfig struct {
-    Name         string `json:"name"`           // Configuration name
-    TableName    string `json:"table_name"`     // Actual database table name
-    ConnectionID string `json:"connection_id"`  // Database connection to use
+    Name         string `json:"name"`           // 配置名称
+    TableName    string `json:"table_name"`     // 实际数据库表名
+    ConnectionID string `json:"connection_id"`  // 使用的数据库连接
     
-    CreateStatement string `json:"create_statement"` // SQL CREATE TABLE statement
+    CreateStatement string `json:"create_statement"` // SQL CREATE TABLE 语句
     
-    // UI Configuration (JSON strings)
-    QueryDisplayFields  string `json:"query_display_fields"`  // Fields to show in list
-    QuerySearchFields   string `json:"query_search_fields"`   // Searchable fields
-    QuerySortableFields string `json:"query_sortable_fields"` // Sortable fields
-    CreateCreatableFields string `json:"create_creatable_fields"` // Fields for create form
-    UpdateUpdatableFields string `json:"update_updatable_fields"` // Fields for edit form
+    // UI 配置（JSON 字符串）
+    QueryDisplayFields  string `json:"query_display_fields"`  // 列表中显示的字段
+    QuerySearchFields   string `json:"query_search_fields"`   // 可搜索的字段
+    QuerySortableFields string `json:"query_sortable_fields"` // 可排序的字段
+    CreateCreatableFields string `json:"create_creatable_fields"` // 创建表单字段
+    UpdateUpdatableFields string `json:"update_updatable_fields"` // 编辑表单字段
     
     Description string `json:"description"`
     Tags        string `json:"tags"`
@@ -430,53 +430,95 @@ type TableConfig struct {
 }
 ```
 
-## Advanced Features
+## 高级功能
 
-### Custom Field Types
+### 自定义字段类型
 
-The system supports various field types for forms:
+系统支持各种表单字段类型：
 
-- `text` - Text input
-- `textarea` - Multi-line text
-- `number` - Numeric input
-- `date` - Date picker
-- `datetime` - Date and time picker
-- `select` - Dropdown selection
-- `checkbox` - Checkbox input
+- `text` - 文本输入
+- `textarea` - 多行文本
+- `number` - 数字输入
+- `date` - 日期选择器
+- `datetime` - 日期时间选择器
+- `select` - 下拉选择
+- `checkbox` - 复选框输入
 
-### Search Types
+### 搜索类型
 
-Configure different search behaviors:
+配置不同的搜索行为：
 
-- `fuzzy` - LIKE search
-- `exact` - Exact match
-- `range` - Numeric range
-- `single` - Single select dropdown
-- `multi_select` - Multiple selection
-- `date_range` - Date range picker
+- `fuzzy` - 模糊搜索（LIKE）
+- `exact` - 精确匹配
+- `range` - 数字范围
+- `single` - 单选下拉框
+- `multi_select` - 多选
+- `date_range` - 日期范围选择器
 
-### Validation
+### 验证
 
-Add validation rules to ensure data integrity:
+添加验证规则以确保数据完整性：
 
 ```go
-validationRules := map[string][]string{
-    "email": {"required", "email"},
-    "age":   {"required", "min:0", "max:150"},
-    "username": {"required", "min:3", "max:50", "unique"},
+// 字段验证配置
+type FieldValidation struct {
+    MinLength    *int   `json:"min_length,omitempty"`    // 最小长度
+    MaxLength    *int   `json:"max_length,omitempty"`    // 最大长度
+    Min          *int   `json:"min,omitempty"`           // 最小值
+    Max          *int   `json:"max,omitempty"`           // 最大值
+    Pattern      string `json:"pattern,omitempty"`       // 正则表达式
+    ErrorMessage string `json:"error_message,omitempty"` // 自定义错误消息
 }
 ```
 
-## Contributing
+## 项目结构
 
-We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for details.
+```
+crud-generator/
+├── crudgen.go              # 主要包接口 (package crudgen)
+├── types.go                # 外部 API 类型定义 (package crudgen)
+├── handlers.go             # HTTP 处理器 (package crudgen)
+├── service_adapters.go     # 服务适配器 (package crudgen)
+├── database_manager.go     # 数据库管理器 (package crudgen)
+├── cmd/
+│   └── crud-generator/     # 独立应用程序
+│       └── main.go         # 可执行程序 (package main)
+├── examples/               # 使用示例
+│   ├── main.go             # 基本示例 (package main)
+│   └── package_usage/      # 包使用示例
+│       └── main.go         # 包使用示例 (package main)
+├── services/               # 内部服务实现
+├── types/                  # 内部类型定义
+├── models/                 # 数据模型
+├── validator/              # 验证器
+├── webui/                  # Web UI 静态文件
+└── ...                     # 其他支持目录
+```
 
-## License
+## 使用方式
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+1. **作为库包使用**：
+   ```go
+   import crudgen "github.com/otkinlife/crud-generator"
+   ```
 
-## Support
+2. **作为独立应用运行**：
+   ```bash
+   go run cmd/crud-generator/main.go
+   # 或者
+   ./start-webui.sh
+   ```
 
-- GitHub Issues: [https://github.com/your-org/crud-generator/issues](https://github.com/your-org/crud-generator/issues)
-- Documentation: [https://crud-generator.docs.com](https://crud-generator.docs.com)
-- Examples: [https://github.com/your-org/crud-generator-examples](https://github.com/your-org/crud-generator-examples)
+## 贡献
+
+我们欢迎贡献！请查看 [CONTRIBUTING.md](CONTRIBUTING.md) 了解详情。
+
+## 许可证
+
+本项目采用 MIT 许可证 - 详情请查看 [LICENSE](LICENSE) 文件。
+
+## 支持
+
+- GitHub Issues: [https://github.com/otkinlife/crud-generator/issues](https://github.com/otkinlife/crud-generator/issues)
+- 文档: [https://crud-generator.docs.com](https://crud-generator.docs.com)
+- 示例: [https://github.com/otkinlife/crud-generator-examples](https://github.com/otkinlife/crud-generator-examples)

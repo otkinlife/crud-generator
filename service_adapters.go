@@ -13,12 +13,6 @@ type ConfigService struct {
 
 // NewConfigService creates a new config service instance
 func NewConfigService(dbManager *DatabaseManager) *ConfigService {
-	// Get the main database for storing configurations
-	mainDB, err := dbManager.GetMainDB()
-	if err != nil {
-		panic("Failed to get main database: " + err.Error())
-	}
-
 	return &ConfigService{
 		internal: services.NewConfigService(),
 	}
@@ -28,23 +22,23 @@ func NewConfigService(dbManager *DatabaseManager) *ConfigService {
 func (cs *ConfigService) CreateConfigFromStruct(config *TableConfig) error {
 	// Convert package struct to internal model
 	internalConfig := &models.TableConfiguration{
-		Name:         config.Name,
-		TableName:    config.TableName,
-		ConnectionID: config.ConnectionID,
-		CreateStatement: config.CreateStatement,
-		QueryPagination: config.QueryPagination,
-		QueryDisplayFields: config.QueryDisplayFields,
-		QuerySearchFields: config.QuerySearchFields,
-		QuerySortableFields: config.QuerySortableFields,
+		Name:                  config.Name,
+		DBTableName:           config.TableName,
+		ConnectionID:          config.ConnectionID,
+		CreateStatement:       config.CreateStatement,
+		QueryPagination:       config.QueryPagination,
+		QueryDisplayFields:    config.QueryDisplayFields,
+		QuerySearchFields:     config.QuerySearchFields,
+		QuerySortableFields:   config.QuerySortableFields,
 		CreateCreatableFields: config.CreateCreatableFields,
 		CreateValidationRules: config.CreateValidationRules,
-		CreateDefaultValues: config.CreateDefaultValues,
+		CreateDefaultValues:   config.CreateDefaultValues,
 		UpdateUpdatableFields: config.UpdateUpdatableFields,
 		UpdateValidationRules: config.UpdateValidationRules,
-		Description: config.Description,
-		Tags: config.Tags,
-		IsActive: config.IsActive,
-		Version: config.Version,
+		Description:           config.Description,
+		Tags:                  config.Tags,
+		IsActive:              config.IsActive,
+		Version:               config.Version,
 	}
 
 	return cs.internal.CreateConfig(internalConfig)
@@ -59,24 +53,24 @@ func (cs *ConfigService) GetConfigByNameAsStruct(name string) (*TableConfig, err
 
 	// Convert internal model to package struct
 	return &TableConfig{
-		ID:           internalConfig.ID,
-		Name:         internalConfig.Name,
-		TableName:    internalConfig.TableName,
-		ConnectionID: internalConfig.ConnectionID,
-		CreateStatement: internalConfig.CreateStatement,
-		QueryPagination: internalConfig.QueryPagination,
-		QueryDisplayFields: internalConfig.QueryDisplayFields,
-		QuerySearchFields: internalConfig.QuerySearchFields,
-		QuerySortableFields: internalConfig.QuerySortableFields,
+		ID:                    internalConfig.ID,
+		Name:                  internalConfig.Name,
+		TableName:             internalConfig.DBTableName,
+		ConnectionID:          internalConfig.ConnectionID,
+		CreateStatement:       internalConfig.CreateStatement,
+		QueryPagination:       internalConfig.QueryPagination,
+		QueryDisplayFields:    internalConfig.QueryDisplayFields,
+		QuerySearchFields:     internalConfig.QuerySearchFields,
+		QuerySortableFields:   internalConfig.QuerySortableFields,
 		CreateCreatableFields: internalConfig.CreateCreatableFields,
 		CreateValidationRules: internalConfig.CreateValidationRules,
-		CreateDefaultValues: internalConfig.CreateDefaultValues,
+		CreateDefaultValues:   internalConfig.CreateDefaultValues,
 		UpdateUpdatableFields: internalConfig.UpdateUpdatableFields,
 		UpdateValidationRules: internalConfig.UpdateValidationRules,
-		Description: internalConfig.Description,
-		Tags: internalConfig.Tags,
-		IsActive: internalConfig.IsActive,
-		Version: internalConfig.Version,
+		Description:           internalConfig.Description,
+		Tags:                  internalConfig.Tags,
+		IsActive:              internalConfig.IsActive,
+		Version:               internalConfig.Version,
 	}, nil
 }
 
@@ -90,24 +84,24 @@ func (cs *ConfigService) GetConfigsAsStruct(connectionID string) ([]*TableConfig
 	configs := make([]*TableConfig, len(internalConfigs))
 	for i, internalConfig := range internalConfigs {
 		configs[i] = &TableConfig{
-			ID:           internalConfig.ID,
-			Name:         internalConfig.Name,
-			TableName:    internalConfig.TableName,
-			ConnectionID: internalConfig.ConnectionID,
-			CreateStatement: internalConfig.CreateStatement,
-			QueryPagination: internalConfig.QueryPagination,
-			QueryDisplayFields: internalConfig.QueryDisplayFields,
-			QuerySearchFields: internalConfig.QuerySearchFields,
-			QuerySortableFields: internalConfig.QuerySortableFields,
+			ID:                    internalConfig.ID,
+			Name:                  internalConfig.Name,
+			TableName:             internalConfig.TableName,
+			ConnectionID:          internalConfig.ConnectionID,
+			CreateStatement:       internalConfig.CreateStatement,
+			QueryPagination:       internalConfig.QueryPagination,
+			QueryDisplayFields:    internalConfig.QueryDisplayFields,
+			QuerySearchFields:     internalConfig.QuerySearchFields,
+			QuerySortableFields:   internalConfig.QuerySortableFields,
 			CreateCreatableFields: internalConfig.CreateCreatableFields,
 			CreateValidationRules: internalConfig.CreateValidationRules,
-			CreateDefaultValues: internalConfig.CreateDefaultValues,
+			CreateDefaultValues:   internalConfig.CreateDefaultValues,
 			UpdateUpdatableFields: internalConfig.UpdateUpdatableFields,
 			UpdateValidationRules: internalConfig.UpdateValidationRules,
-			Description: internalConfig.Description,
-			Tags: internalConfig.Tags,
-			IsActive: internalConfig.IsActive,
-			Version: internalConfig.Version,
+			Description:           internalConfig.Description,
+			Tags:                  internalConfig.Tags,
+			IsActive:              internalConfig.IsActive,
+			Version:               internalConfig.Version,
 		}
 	}
 
@@ -117,23 +111,23 @@ func (cs *ConfigService) GetConfigsAsStruct(connectionID string) ([]*TableConfig
 // UpdateConfigFromStruct updates a config from the package struct
 func (cs *ConfigService) UpdateConfigFromStruct(id uint, config *TableConfig) error {
 	internalConfig := &models.TableConfiguration{
-		Name:         config.Name,
-		TableName:    config.TableName,
-		ConnectionID: config.ConnectionID,
-		CreateStatement: config.CreateStatement,
-		QueryPagination: config.QueryPagination,
-		QueryDisplayFields: config.QueryDisplayFields,
-		QuerySearchFields: config.QuerySearchFields,
-		QuerySortableFields: config.QuerySortableFields,
+		Name:                  config.Name,
+		DBTableName:           config.TableName,
+		ConnectionID:          config.ConnectionID,
+		CreateStatement:       config.CreateStatement,
+		QueryPagination:       config.QueryPagination,
+		QueryDisplayFields:    config.QueryDisplayFields,
+		QuerySearchFields:     config.QuerySearchFields,
+		QuerySortableFields:   config.QuerySortableFields,
 		CreateCreatableFields: config.CreateCreatableFields,
 		CreateValidationRules: config.CreateValidationRules,
-		CreateDefaultValues: config.CreateDefaultValues,
+		CreateDefaultValues:   config.CreateDefaultValues,
 		UpdateUpdatableFields: config.UpdateUpdatableFields,
 		UpdateValidationRules: config.UpdateValidationRules,
-		Description: config.Description,
-		Tags: config.Tags,
-		IsActive: config.IsActive,
-		Version: config.Version,
+		Description:           config.Description,
+		Tags:                  config.Tags,
+		IsActive:              config.IsActive,
+		Version:               config.Version,
 	}
 
 	return cs.internal.UpdateConfig(id, internalConfig)
@@ -201,14 +195,23 @@ func (cs *CRUDService) List(configName string, params *QueryParams) (*QueryResul
 func (cs *CRUDService) Create(configName string, data map[string]interface{}) (*CRUDResult, error) {
 	result, err := cs.internal.Create(configName, data)
 	if err != nil {
-		return nil, err
+		return &CRUDResult{
+			Success: false,
+			Error:   err.Error(),
+		}, nil
+	}
+
+	// Convert validation errors to error message if any
+	var errorMsg string
+	if len(result.Errors) > 0 {
+		errorMsg = result.Errors[0].Message
 	}
 
 	return &CRUDResult{
 		Success: result.Success,
-		Data:    result.Data,
-		Error:   result.Error,
-		Message: result.Message,
+		Data:    map[string]interface{}{"id": result.ID},
+		Error:   errorMsg,
+		Message: "Record created successfully",
 	}, nil
 }
 
@@ -216,14 +219,23 @@ func (cs *CRUDService) Create(configName string, data map[string]interface{}) (*
 func (cs *CRUDService) Update(configName string, id interface{}, data map[string]interface{}) (*CRUDResult, error) {
 	result, err := cs.internal.Update(configName, id, data)
 	if err != nil {
-		return nil, err
+		return &CRUDResult{
+			Success: false,
+			Error:   err.Error(),
+		}, nil
+	}
+
+	// Convert validation errors to error message if any
+	var errorMsg string
+	if len(result.Errors) > 0 {
+		errorMsg = result.Errors[0].Message
 	}
 
 	return &CRUDResult{
 		Success: result.Success,
-		Data:    result.Data,
-		Error:   result.Error,
-		Message: result.Message,
+		Data:    map[string]interface{}{"rows_affected": result.RowsAffected},
+		Error:   errorMsg,
+		Message: "Record updated successfully",
 	}, nil
 }
 
@@ -231,14 +243,16 @@ func (cs *CRUDService) Update(configName string, id interface{}, data map[string
 func (cs *CRUDService) Delete(configName string, id interface{}) (*CRUDResult, error) {
 	result, err := cs.internal.Delete(configName, id)
 	if err != nil {
-		return nil, err
+		return &CRUDResult{
+			Success: false,
+			Error:   err.Error(),
+		}, nil
 	}
 
 	return &CRUDResult{
 		Success: result.Success,
-		Data:    result.Data,
-		Error:   result.Error,
-		Message: result.Message,
+		Data:    map[string]interface{}{"rows_affected": result.RowsAffected},
+		Message: "Record deleted successfully",
 	}, nil
 }
 

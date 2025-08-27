@@ -11,10 +11,10 @@ import (
 func main() {
 	// Create configuration
 	config := &crudgen.Config{
-		EnableAuth:    false, // Disable auth for testing
-		UIEnabled:     true,
-		UIBasePath:    "/admin",
-		APIBasePath:   "/api/v1",
+		EnableAuth:  false, // Disable auth for testing
+		UIEnabled:   true,
+		UIBasePath:  "/admin",
+		APIBasePath: "/api/v1",
 		DatabaseConfig: map[string]crudgen.DatabaseConnection{
 			"main": {
 				Type:         "postgresql",
@@ -69,9 +69,9 @@ func main() {
 	// Your existing routes
 	router.GET("/", func(c *gin.Context) {
 		c.JSON(200, gin.H{
-			"message": "Package Test Server",
+			"message":  "Package Test Server",
 			"admin_ui": config.UIBasePath,
-			"api": config.APIBasePath,
+			"api":      config.APIBasePath,
 		})
 	})
 

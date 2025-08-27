@@ -21,23 +21,23 @@ type CRUDGenerator struct {
 type Config struct {
 	// Database configuration
 	DatabaseConfig map[string]DatabaseConnection `json:"databases"`
-	
+
 	// Authentication settings
-	EnableAuth      bool   `json:"enable_auth"`
-	JWTSecret      string `json:"jwt_secret"`
-	TokenExpireHours int   `json:"token_expire_hours"`
-	
-	// UI settings  
-	UIEnabled    bool   `json:"ui_enabled"`
-	UIBasePath   string `json:"ui_base_path"`
-	
+	EnableAuth       bool   `json:"enable_auth"`
+	JWTSecret        string `json:"jwt_secret"`
+	TokenExpireHours int    `json:"token_expire_hours"`
+
+	// UI settings
+	UIEnabled  bool   `json:"ui_enabled"`
+	UIBasePath string `json:"ui_base_path"`
+
 	// API settings
-	APIBasePath  string `json:"api_base_path"`
+	APIBasePath string `json:"api_base_path"`
 }
 
 // DatabaseConnection represents a database connection configuration
 type DatabaseConnection struct {
-	Type         string `json:"type"`          // postgresql, mysql
+	Type         string `json:"type"` // postgresql, mysql
 	Host         string `json:"host"`
 	Port         int    `json:"port"`
 	Database     string `json:"database"`
@@ -54,23 +54,23 @@ type TableConfig struct {
 	Name         string `json:"name"`
 	TableName    string `json:"table_name"`
 	ConnectionID string `json:"connection_id"`
-	
+
 	// SQL Schema
 	CreateStatement string `json:"create_statement"`
-	
+
 	// Query configuration
-	QueryPagination    bool   `json:"query_pagination"`
-	QueryDisplayFields string `json:"query_display_fields"`
-	QuerySearchFields  string `json:"query_search_fields"`
+	QueryPagination     bool   `json:"query_pagination"`
+	QueryDisplayFields  string `json:"query_display_fields"`
+	QuerySearchFields   string `json:"query_search_fields"`
 	QuerySortableFields string `json:"query_sortable_fields"`
-	
+
 	// Create/Update configuration
-	CreateCreatableFields   string `json:"create_creatable_fields"`
-	CreateValidationRules   string `json:"create_validation_rules"`
-	CreateDefaultValues     string `json:"create_default_values"`
-	UpdateUpdatableFields   string `json:"update_updatable_fields"`
-	UpdateValidationRules   string `json:"update_validation_rules"`
-	
+	CreateCreatableFields string `json:"create_creatable_fields"`
+	CreateValidationRules string `json:"create_validation_rules"`
+	CreateDefaultValues   string `json:"create_default_values"`
+	UpdateUpdatableFields string `json:"update_updatable_fields"`
+	UpdateValidationRules string `json:"update_validation_rules"`
+
 	// Other settings
 	Description string `json:"description"`
 	Tags        string `json:"tags"`
@@ -94,12 +94,12 @@ type DatabaseManager struct {
 func DefaultConfig() *Config {
 	return &Config{
 		EnableAuth:       false,
-		JWTSecret:       "crud-generator-default-secret",
+		JWTSecret:        "crud-generator-default-secret",
 		TokenExpireHours: 2,
-		UIEnabled:       true,
-		UIBasePath:      "/crud-ui",
-		APIBasePath:     "/api",
-		DatabaseConfig:  make(map[string]DatabaseConnection),
+		UIEnabled:        true,
+		UIBasePath:       "/crud-ui",
+		APIBasePath:      "/api",
+		DatabaseConfig:   make(map[string]DatabaseConnection),
 	}
 }
 
@@ -108,19 +108,19 @@ func New(config *Config) (*CRUDGenerator, error) {
 	if config == nil {
 		config = DefaultConfig()
 	}
-	
+
 	// Initialize database manager
 	dbManager, err := NewDatabaseManager(config.DatabaseConfig)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	// Initialize services
 	services := &Services{
 		ConfigService: NewConfigService(dbManager),
 		CRUDService:   NewCRUDService(dbManager),
 	}
-	
+
 	return &CRUDGenerator{
 		config:    config,
 		dbManager: dbManager,
@@ -133,19 +133,19 @@ func NewWithGormDB(db *gorm.DB, connectionName string, config *Config) (*CRUDGen
 	if config == nil {
 		config = DefaultConfig()
 	}
-	
+
 	// Initialize database manager with existing connection
 	dbManager := &DatabaseManager{
 		connections: map[string]*gorm.DB{connectionName: db},
 		config:      config.DatabaseConfig,
 	}
-	
+
 	// Initialize services
 	services := &Services{
 		ConfigService: NewConfigService(dbManager),
 		CRUDService:   NewCRUDService(dbManager),
 	}
-	
+
 	return &CRUDGenerator{
 		config:    config,
 		dbManager: dbManager,
@@ -185,7 +185,7 @@ func (cg *CRUDGenerator) GetAPIHandler() http.Handler {
 	return router
 }
 
-// GetUIHandler returns a http.Handler for the UI routes only  
+// GetUIHandler returns a http.Handler for the UI routes only
 func (cg *CRUDGenerator) GetUIHandler() http.Handler {
 	router := gin.New()
 	cg.registerUIRoutes(router)
@@ -236,7 +236,7 @@ func (cg *CRUDGenerator) Create(configName string, data map[string]interface{}) 
 	return cg.services.CRUDService.Create(configName, data)
 }
 
-// Update updates a record in the specified table  
+// Update updates a record in the specified table
 func (cg *CRUDGenerator) Update(configName string, id interface{}, data map[string]interface{}) (*CRUDResult, error) {
 	return cg.services.CRUDService.Update(configName, id, data)
 }
@@ -256,14 +256,4 @@ func (cg *CRUDGenerator) Close() error {
 	return cg.dbManager.Close()
 }
 
-// Internal methods
-
-func (cg *CRUDGenerator) registerAPIRoutes(router *gin.Engine) {
-	// This will implement the API routes registration
-	// Similar to the current main.go setupRoutes but modular
-}
-
-func (cg *CRUDGenerator) registerUIRoutes(router *gin.Engine) {
-	// This will implement the UI routes registration  
-	// Serve static files and HTML pages
-}
+// Internal methods are implemented in handlers.go

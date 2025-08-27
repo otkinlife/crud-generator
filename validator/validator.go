@@ -22,114 +22,169 @@ func NewValidator(config *types.Config) *Validator {
 }
 
 func (v *Validator) ValidateCreate(data map[string]interface{}) []types.ValidationError {
-	if v.config.CreateConfig == nil || len(v.config.CreateConfig.ValidationRules) == 0 {
+	if v.config.CreateConfig == nil || len(v.config.CreateConfig.CreatableFields) == 0 {
 		return nil
 	}
 
-	return v.validateData(data, v.config.CreateConfig.ValidationRules)
-}
-
-func (v *Validator) ValidateUpdate(data map[string]interface{}) []types.ValidationError {
-	if v.config.UpdateConfig == nil || len(v.config.UpdateConfig.ValidationRules) == 0 {
-		return nil
-	}
-
-	return v.validateData(data, v.config.UpdateConfig.ValidationRules)
-}
-
-func (v *Validator) validateData(data map[string]interface{}, rules map[string]string) []types.ValidationError {
 	var errors []types.ValidationError
+	for _, field := range v.config.CreateConfig.CreatableFields {
+		value, exists := data[field.Field]
 
-	for fieldName, rule := range rules {
-		value, exists := data[fieldName]
-
-		if !exists {
-			if strings.Contains(rule, "required") {
-				errors = append(errors, types.ValidationError{
-					Field:   fieldName,
-					Tag:     "required",
-					Value:   nil,
-					Message: fmt.Sprintf("Field '%s' is required", fieldName),
-				})
-			}
+		// Check required fields
+		if field.Required && !exists {
+			errors = append(errors, types.ValidationError{
+				Field:   field.Field,
+				Tag:     "required",
+				Value:   nil,
+				Message: fmt.Sprintf("Field '%s' is required", field.Field),
+			})
 			continue
 		}
 
-		fieldErrors := v.validateField(fieldName, value, rule)
-		errors = append(errors, fieldErrors...)
+		// Validate field if value exists and validation rules are defined
+		if exists && field.Validation != nil {
+			fieldErrors := v.validateFieldWithRules(field.Field, value, field.Validation)
+			errors = append(errors, fieldErrors...)
+		}
 	}
 
 	return errors
 }
 
-func (v *Validator) validateField(fieldName string, value interface{}, rule string) []types.ValidationError {
+func (v *Validator) ValidateUpdate(data map[string]interface{}) []types.ValidationError {
+	if v.config.UpdateConfig == nil || len(v.config.UpdateConfig.UpdatableFields) == 0 {
+		return nil
+	}
+
+	var errors []types.ValidationError
+	for _, field := range v.config.UpdateConfig.UpdatableFields {
+		value, exists := data[field.Field]
+
+		// Check required fields
+		if field.Required && !exists {
+			errors = append(errors, types.ValidationError{
+				Field:   field.Field,
+				Tag:     "required",
+				Value:   nil,
+				Message: fmt.Sprintf("Field '%s' is required", field.Field),
+			})
+			continue
+		}
+
+		// Validate field if value exists and validation rules are defined
+		if exists && field.Validation != nil {
+			fieldErrors := v.validateFieldWithRules(field.Field, value, field.Validation)
+			errors = append(errors, fieldErrors...)
+		}
+	}
+
+	return errors
+}
+
+func (v *Validator) validateFieldWithRules(fieldName string, value interface{}, validation *types.FieldValidation) []types.ValidationError {
 	var errors []types.ValidationError
 
-	//structData := map[string]interface{}{
-	//	fieldName: value,
-	//}
+	// Convert value to appropriate type for validation
+	strValue := fmt.Sprintf("%v", value)
 
-	structType := reflect.StructOf([]reflect.StructField{
-		{
-			Name: strings.Title(fieldName),
-			Type: reflect.TypeOf(value),
-			Tag:  reflect.StructTag(fmt.Sprintf(`validate:"%s"`, rule)),
-		},
-	})
-
-	structValue := reflect.New(structType).Elem()
-	structValue.FieldByName(strings.Title(fieldName)).Set(reflect.ValueOf(value))
-
-	err := v.validator.Struct(structValue.Interface())
-	if err != nil {
-		for _, validationErr := range err.(validator.ValidationErrors) {
+	// Validate MinLength
+	if validation.MinLength != nil {
+		if len(strValue) < *validation.MinLength {
 			errors = append(errors, types.ValidationError{
 				Field:   fieldName,
-				Tag:     validationErr.Tag(),
+				Tag:     "min_length",
 				Value:   value,
-				Message: v.getErrorMessage(fieldName, validationErr),
+				Message: fmt.Sprintf("Field '%s' must be at least %d characters long", fieldName, *validation.MinLength),
+			})
+		}
+	}
+
+	// Validate MaxLength
+	if validation.MaxLength != nil {
+		if len(strValue) > *validation.MaxLength {
+			errors = append(errors, types.ValidationError{
+				Field:   fieldName,
+				Tag:     "max_length",
+				Value:   value,
+				Message: fmt.Sprintf("Field '%s' must be at most %d characters long", fieldName, *validation.MaxLength),
+			})
+		}
+	}
+
+	// Validate Min (for numeric values)
+	if validation.Min != nil {
+		if numValue, ok := value.(float64); ok {
+			if int(numValue) < *validation.Min {
+				errors = append(errors, types.ValidationError{
+					Field:   fieldName,
+					Tag:     "min",
+					Value:   value,
+					Message: fmt.Sprintf("Field '%s' must be at least %d", fieldName, *validation.Min),
+				})
+			}
+		} else if intValue, ok := value.(int); ok {
+			if intValue < *validation.Min {
+				errors = append(errors, types.ValidationError{
+					Field:   fieldName,
+					Tag:     "min",
+					Value:   value,
+					Message: fmt.Sprintf("Field '%s' must be at least %d", fieldName, *validation.Min),
+				})
+			}
+		}
+	}
+
+	// Validate Max (for numeric values)
+	if validation.Max != nil {
+		if numValue, ok := value.(float64); ok {
+			if int(numValue) > *validation.Max {
+				errors = append(errors, types.ValidationError{
+					Field:   fieldName,
+					Tag:     "max",
+					Value:   value,
+					Message: fmt.Sprintf("Field '%s' must be at most %d", fieldName, *validation.Max),
+				})
+			}
+		} else if intValue, ok := value.(int); ok {
+			if intValue > *validation.Max {
+				errors = append(errors, types.ValidationError{
+					Field:   fieldName,
+					Tag:     "max",
+					Value:   value,
+					Message: fmt.Sprintf("Field '%s' must be at most %d", fieldName, *validation.Max),
+				})
+			}
+		}
+	}
+
+	// Validate Pattern (regex)
+	if validation.Pattern != "" {
+		// Use the existing validator library for regex validation
+		structType := reflect.StructOf([]reflect.StructField{
+			{
+				Name: strings.Title(fieldName),
+				Type: reflect.TypeOf(value),
+				Tag:  reflect.StructTag(fmt.Sprintf(`validate:"regexp=%s"`, validation.Pattern)),
+			},
+		})
+
+		structValue := reflect.New(structType).Elem()
+		structValue.FieldByName(strings.Title(fieldName)).Set(reflect.ValueOf(value))
+
+		err := v.validator.Struct(structValue.Interface())
+		if err != nil {
+			message := validation.ErrorMessage
+			if message == "" {
+				message = fmt.Sprintf("Field '%s' does not match required pattern", fieldName)
+			}
+			errors = append(errors, types.ValidationError{
+				Field:   fieldName,
+				Tag:     "pattern",
+				Value:   value,
+				Message: message,
 			})
 		}
 	}
 
 	return errors
-}
-
-func (v *Validator) getErrorMessage(fieldName string, err validator.FieldError) string {
-	switch err.Tag() {
-	case "required":
-		return fmt.Sprintf("Field '%s' is required", fieldName)
-	case "min":
-		return fmt.Sprintf("Field '%s' must be at least %s", fieldName, err.Param())
-	case "max":
-		return fmt.Sprintf("Field '%s' must be at most %s", fieldName, err.Param())
-	case "len":
-		return fmt.Sprintf("Field '%s' must be exactly %s characters long", fieldName, err.Param())
-	case "email":
-		return fmt.Sprintf("Field '%s' must be a valid email address", fieldName)
-	case "url":
-		return fmt.Sprintf("Field '%s' must be a valid URL", fieldName)
-	case "numeric":
-		return fmt.Sprintf("Field '%s' must be numeric", fieldName)
-	case "alpha":
-		return fmt.Sprintf("Field '%s' must contain only alphabetic characters", fieldName)
-	case "alphanum":
-		return fmt.Sprintf("Field '%s' must contain only alphanumeric characters", fieldName)
-	case "gte":
-		return fmt.Sprintf("Field '%s' must be greater than or equal to %s", fieldName, err.Param())
-	case "lte":
-		return fmt.Sprintf("Field '%s' must be less than or equal to %s", fieldName, err.Param())
-	case "gt":
-		return fmt.Sprintf("Field '%s' must be greater than %s", fieldName, err.Param())
-	case "lt":
-		return fmt.Sprintf("Field '%s' must be less than %s", fieldName, err.Param())
-	case "oneof":
-		return fmt.Sprintf("Field '%s' must be one of: %s", fieldName, err.Param())
-	case "uuid":
-		return fmt.Sprintf("Field '%s' must be a valid UUID", fieldName)
-	case "json":
-		return fmt.Sprintf("Field '%s' must be valid JSON", fieldName)
-	default:
-		return fmt.Sprintf("Field '%s' validation failed: %s", fieldName, err.Tag())
-	}
 }
