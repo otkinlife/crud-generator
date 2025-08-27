@@ -1,5 +1,38 @@
 const { createApp } = Vue;
 
+// 全局配置管理器
+const ConfigManager = {
+    config: null,
+    
+    async loadConfig() {
+        if (this.config) return this.config;
+        
+        try {
+            const response = await axios.get('/config');
+            this.config = response.data.data;
+            return this.config;
+        } catch (error) {
+            console.warn('Failed to load config, using defaults:', error);
+            // 如果获取配置失败，使用默认配置
+            this.config = {
+                api_base_path: '/api',
+                enable_auth: false,
+                ui_base_path: '/crud-ui'
+            };
+            return this.config;
+        }
+    },
+    
+    getApiUrl(path) {
+        const basePath = this.config ? this.config.api_base_path : '/api';
+        return basePath + (path.startsWith('/') ? path : '/' + path);
+    },
+    
+    isAuthEnabled() {
+        return this.config ? this.config.enable_auth : false;
+    }
+};
+
 // 认证管理器
 const AuthManager = {
     tokenKey: 'crud_generator_token',
@@ -109,8 +142,8 @@ createApp({
         }
     },
     mounted() {
-        // 首先检查后端是否启用认证
-        this.checkAuthConfig();
+        // 首先加载配置，然后检查认证
+        this.initializeApp();
         
         // 初始化Bootstrap tooltips
         this.$nextTick(() => {
@@ -121,14 +154,35 @@ createApp({
         });
     },
     methods: {
+        // 初始化应用
+        async initializeApp() {
+            try {
+                await ConfigManager.loadConfig();
+                this.checkAuthConfig();
+            } catch (error) {
+                console.error('Failed to initialize app:', error);
+                // 即使配置加载失败，也尝试继续
+                this.checkAuthConfig();
+            }
+        },
+        
         // 检查后端认证配置
         async checkAuthConfig() {
             try {
-                // 尝试直接访问一个API来检查是否需要认证
-                const response = await axios.get('/api/connections');
-                // 如果能直接访问成功，说明无需认证
+                // 先检查配置中是否启用了认证
+                if (!ConfigManager.isAuthEnabled()) {
+                    // 认证未启用，直接进入主界面
+                    this.isAuthenticated = true;
+                    this.userInfo = { username: 'guest', role: 'user' };
+                    this.loadConnections();
+                    this.loadConfigs();
+                    return;
+                }
+                
+                // 如果启用了认证，尝试访问API检查
+                const response = await axios.get(ConfigManager.getApiUrl('/connections'));
                 this.isAuthenticated = true;
-                this.userInfo = { username: 'guest', role: 'user' }; // 设置默认用户信息
+                this.userInfo = { username: 'guest', role: 'user' };
                 this.loadConnections();
                 this.loadConfigs();
             } catch (error) {
@@ -643,7 +697,7 @@ createApp({
         
         async loadConnections() {
             try {
-                const response = await axios.get('/api/connections');
+                const response = await axios.get(ConfigManager.getApiUrl('/connections'));
                 this.connections = response.data.data;
             } catch (error) {
                 console.error('Failed to load connections:', error);
@@ -652,7 +706,7 @@ createApp({
         
         async loadConfigs() {
             try {
-                const response = await axios.get('/api/configs');
+                const response = await axios.get(ConfigManager.getApiUrl('/configs'));
                 this.configs = response.data.data;
             } catch (error) {
                 console.error('Failed to load configs:', error);
@@ -708,7 +762,7 @@ createApp({
             this.saving = true;
             try {
                 const cleanedConfig = this.cleanData(this.selectedConfig);
-                await axios.put('/api/configs/' + this.selectedConfig.id, cleanedConfig);
+                await axios.put(ConfigManager.getApiUrl('/configs/' + this.selectedConfig.id), cleanedConfig);
                 this.message = '配置保存成功';
                 this.messageType = 'success';
                 await this.loadConfigs();
@@ -725,7 +779,7 @@ createApp({
             this.creating = true;
             try {
                 const cleanedConfig = this.cleanData(this.newConfig);
-                await axios.post('/api/configs', cleanedConfig);
+                await axios.post(ConfigManager.getApiUrl('/configs'), cleanedConfig);
                 bootstrap.Modal.getInstance(document.getElementById('configModal')).hide();
                 this.resetNewConfig();
                 await this.loadConfigs();
@@ -740,7 +794,7 @@ createApp({
             if (!this.selectedConfig || !confirm('确定要删除这个配置吗？')) return;
             
             try {
-                await axios.delete('/api/configs/' + this.selectedConfig.id);
+                await axios.delete(ConfigManager.getApiUrl('/configs/' + this.selectedConfig.id));
                 this.selectedConfig = null;
                 await this.loadConfigs();
             } catch (error) {
@@ -750,7 +804,7 @@ createApp({
         
         async testConnection(connectionId) {
             try {
-                await axios.post('/api/connections/' + connectionId + '/test');
+                await axios.post(ConfigManager.getApiUrl('/connections/' + connectionId + '/test'));
                 this.message = '数据库连接测试成功';
                 this.messageType = 'success';
             } catch (error) {
@@ -763,7 +817,7 @@ createApp({
 
         async testConnectionWithTable(connectionId, tableName) {
             try {
-                await axios.post('/api/connections/' + connectionId + '/test-table', {
+                await axios.post(ConfigManager.getApiUrl('/connections/' + connectionId + '/test-table'), {
                     table_name: tableName
                 });
                 this.message = `表 '${tableName}' 访问测试成功`;
@@ -778,7 +832,7 @@ createApp({
 
         async testConfigConnection(configId) {
             try {
-                await axios.post('/api/configs/' + configId + '/test');
+                await axios.post(ConfigManager.getApiUrl('/configs/' + configId + '/test'));
                 this.message = '配置连接和表测试成功';
                 this.messageType = 'success';
             } catch (error) {

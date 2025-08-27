@@ -28,8 +28,10 @@ type APIServer struct {
 }
 
 type AppConfig struct {
-	EnableAuth bool `json:"enable_auth"`
-	Port       int  `json:"port"`
+	EnableAuth  bool   `json:"enable_auth"`
+	Port        int    `json:"port"`
+	APIBasePath string `json:"api_base_path"`
+	UIBasePath  string `json:"ui_base_path"`
 }
 
 type APIResponse struct {
@@ -59,8 +61,10 @@ func NewAPIServer() *APIServer {
 
 func loadConfig() *AppConfig {
 	config := &AppConfig{
-		EnableAuth: false, // 默认关闭认证
-		Port:       8080,  // 默认端口
+		EnableAuth:  false,      // 默认关闭认证
+		Port:        8080,       // 默认端口
+		APIBasePath: "/api",     // 默认API路径
+		UIBasePath:  "/crud-ui", // 默认UI路径
 	}
 
 	// 从环境变量读取认证设置
@@ -75,6 +79,16 @@ func loadConfig() *AppConfig {
 		if port, err := strconv.Atoi(portStr); err == nil {
 			config.Port = port
 		}
+	}
+
+	// 从环境变量读取API路径
+	if apiPath := os.Getenv("API_BASE_PATH"); apiPath != "" {
+		config.APIBasePath = apiPath
+	}
+
+	// 从环境变量读取UI路径
+	if uiPath := os.Getenv("UI_BASE_PATH"); uiPath != "" {
+		config.UIBasePath = uiPath
 	}
 
 	return config
@@ -108,7 +122,7 @@ func (s *APIServer) setupRoutes() {
 	}
 
 	// API路由组，根据配置决定是否需要JWT认证
-	api := s.router.Group("/api")
+	api := s.router.Group(s.config.APIBasePath)
 	if s.config.EnableAuth {
 		api.Use(middleware.JWTAuth()) // 仅在启用认证时应用JWT认证中间件
 	}
@@ -142,6 +156,10 @@ func (s *APIServer) setupRoutes() {
 	s.router.Static("/webui", "./webui")
 	s.router.GET("/", s.serveIndex)
 	s.router.GET("/crud/:config_name", s.serveCRUDPage)
+
+	// 配置接口（不需要认证，用于前端获取配置）
+	s.router.GET("/config", s.getClientConfig)
+
 	s.router.NoRoute(s.serveIndex)
 }
 
@@ -523,6 +541,20 @@ func (s *APIServer) serveIndex(c *gin.Context) {
 
 func (s *APIServer) serveCRUDPage(c *gin.Context) {
 	c.File("./webui/crud.html")
+}
+
+// 获取客户端配置信息
+func (s *APIServer) getClientConfig(c *gin.Context) {
+	config := map[string]interface{}{
+		"api_base_path": s.config.APIBasePath,
+		"enable_auth":   s.config.EnableAuth,
+		"ui_base_path":  s.config.UIBasePath,
+	}
+
+	c.JSON(http.StatusOK, APIResponse{
+		Success: true,
+		Data:    config,
+	})
 }
 
 // CRUD API处理器

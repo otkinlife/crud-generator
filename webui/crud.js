@@ -31,6 +31,73 @@ const AuthManager = {
 };
 
 // 创建专用的axios实例，避免与主页面的拦截器冲突
+// 全局配置管理器（和 app.js 保持一致）
+const ConfigManager = {
+    config: null,
+    
+    async loadConfig() {
+        if (this.config) return this.config;
+        
+        try {
+            const response = await axios.get('/config');
+            this.config = response.data.data;
+            return this.config;
+        } catch (error) {
+            console.warn('Failed to load config, using defaults:', error);
+            // 如果获取配置失败，使用默认配置
+            this.config = {
+                api_base_path: '/api',
+                enable_auth: false,
+                ui_base_path: '/crud-ui'
+            };
+            return this.config;
+        }
+    },
+    
+    getApiUrl(path) {
+        const basePath = this.config ? this.config.api_base_path : '/api';
+        return basePath + (path.startsWith('/') ? path : '/' + path);
+    },
+    
+    isAuthEnabled() {
+        return this.config ? this.config.enable_auth : false;
+    }
+};
+
+// 认证管理器（从 app.js 复制）
+const AuthManager = {
+    tokenKey: 'crud_generator_token',
+    userKey: 'crud_generator_user',
+    
+    saveToken(tokenData) {
+        localStorage.setItem(this.tokenKey, JSON.stringify(tokenData));
+    },
+    
+    getToken() {
+        const stored = localStorage.getItem(this.tokenKey);
+        return stored ? JSON.parse(stored) : null;
+    },
+    
+    saveUser(userInfo) {
+        localStorage.setItem(this.userKey, JSON.stringify(userInfo));
+    },
+    
+    getUser() {
+        const stored = localStorage.getItem(this.userKey);
+        return stored ? JSON.parse(stored) : null;
+    },
+    
+    clearAuth() {
+        localStorage.removeItem(this.tokenKey);
+        localStorage.removeItem(this.userKey);
+    },
+    
+    isTokenExpired(tokenData) {
+        if (!tokenData || !tokenData.expires_at) return true;
+        return new Date(tokenData.expires_at) <= new Date();
+    }
+};
+
 const crudAxios = axios.create();
 
 // 配置CRUD页面专用的axios拦截器
@@ -99,7 +166,8 @@ createApp({
         }
     },
     async mounted() {
-        // 首先检查后端是否启用认证
+        // 首先加载配置，然后检查认证
+        await ConfigManager.loadConfig();
         await this.checkAuthConfig();
         
         // 从URL获取配置名称
@@ -117,20 +185,21 @@ createApp({
         // 检查后端认证配置
         async checkAuthConfig() {
             try {
-                // 尝试直接访问一个API来检查是否需要认证
-                await axios.get('/api/connections');
-                // 如果能直接访问成功，说明无需认证
-                return;
-            } catch (error) {
-                if (error.response && error.response.status === 401) {
-                    // 需要认证，检查token
-                    const tokenData = AuthManager.getToken();
-                    if (!tokenData || AuthManager.isTokenExpired(tokenData)) {
-                        alert('请先登录');
-                        window.location.href = '/';
-                        return;
-                    }
+                // 先检查配置中是否启用了认证
+                if (!ConfigManager.isAuthEnabled()) {
+                    // 认证未启用，直接返回
+                    return;
                 }
+                
+                // 如果启用了认证，检查token
+                const tokenData = AuthManager.getToken();
+                if (!tokenData || AuthManager.isTokenExpired(tokenData)) {
+                    alert('请先登录');
+                    window.location.href = '/';
+                    return;
+                }
+            } catch (error) {
+                console.error('Auth config check failed:', error);
                 // 其他错误忽略，继续执行
             }
         },
@@ -138,7 +207,7 @@ createApp({
         async loadConfiguration() {
             try {
                 // 直接根据配置名称获取单个配置，而不是获取所有配置再筛选
-                const response = await crudAxios.get(`/api/configs/by-name/${this.configName}`);
+                const response = await crudAxios.get(ConfigManager.getApiUrl(`/configs/by-name/${this.configName}`));
                 const config = response.data.data;
                 
                 if (!config) {
@@ -311,7 +380,7 @@ createApp({
             for (const field of this.searchFields) {
                 if (field.dict_source && (field.type === 'single' || field.type === 'multi_select')) {
                     try {
-                        const response = await crudAxios.get(`/api/${this.configName}/dict/${field.field}`);
+                        const response = await crudAxios.get(ConfigManager.getApiUrl(`/${this.configName}/dict/${field.field}`));
                         this.dictData[field.field] = response.data.data;
                     } catch (error) {
                         console.warn(`Failed to load dict data for ${field.field}:`, error);
@@ -382,7 +451,7 @@ createApp({
                     params.append('order', this.sortOrder);
                 }
                 
-                const response = await crudAxios.get(`/api/${this.configName}/list?${params.toString()}`);
+                const response = await crudAxios.get(ConfigManager.getApiUrl(`/${this.configName}/list?${params.toString()}`));
                 const result = response.data.data;
                 
                 this.records = result.data || [];
@@ -497,10 +566,10 @@ createApp({
                 if (this.editingRecord) {
                     // 更新记录
                     const id = this.editingRecord.id;
-                    await crudAxios.put(`/api/${this.configName}/update/${id}`, this.formData);
+                    await crudAxios.put(ConfigManager.getApiUrl(`/${this.configName}/update/${id}`), this.formData);
                 } else {
                     // 创建记录
-                    await crudAxios.post(`/api/${this.configName}/create`, this.formData);
+                    await crudAxios.post(ConfigManager.getApiUrl(`/${this.configName}/create`), this.formData);
                 }
                 
                 this.modal.hide();
@@ -521,7 +590,7 @@ createApp({
             
             try {
                 const id = record.id;
-                await crudAxios.delete(`/api/${this.configName}/delete/${id}`);
+                await crudAxios.delete(ConfigManager.getApiUrl(`/${this.configName}/delete/${id}`));
                 await this.loadData();
             } catch (error) {
                 console.error('Failed to delete record:', error);
