@@ -99,7 +99,7 @@ func (cg *CRUDGenerator) handleUIIndex(c *gin.Context) {
 	// Replace base path in HTML if needed
 	content := string(data)
 	if cg.config.UIBasePath != "/crud-ui" {
-		content = strings.ReplaceAll(content, "/webui/", cg.config.UIBasePath+"/")
+		content = strings.ReplaceAll(content, "/webui/", cg.config.UIBasePath+"/static/")
 	}
 
 	// Inject configuration into the page
@@ -131,7 +131,7 @@ func (cg *CRUDGenerator) handleUICRUDPage(c *gin.Context) {
 	// Replace base path in HTML if needed
 	content := string(data)
 	if cg.config.UIBasePath != "/crud-ui" {
-		content = strings.ReplaceAll(content, "/webui/", cg.config.UIBasePath+"/")
+		content = strings.ReplaceAll(content, "/webui/", cg.config.UIBasePath+"/static/")
 	}
 
 	// Inject configuration into the page
