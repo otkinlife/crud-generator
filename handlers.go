@@ -2,6 +2,7 @@ package crudgen
 
 import (
 	"embed"
+	"fmt"
 	"io/fs"
 	"net/http"
 	"strconv"
@@ -18,12 +19,12 @@ var webuiFS embed.FS
 func (cg *CRUDGenerator) registerAPIRoutes(router *gin.Engine) {
 	// Apply middleware
 	router.Use(middleware.LoggerMiddleware())
-	
+
 	// Enable CORS
 	router.Use(func(c *gin.Context) {
 		c.Header("Access-Control-Allow-Origin", "*")
 		c.Header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-		c.Header("Access-Control-Allow-Headers", "Content-Type, Authorization")
+		c.Header("Access-Control-Allow-Headers", "Content-Type")
 
 		if c.Request.Method == "OPTIONS" {
 			c.AbortWithStatus(204)
@@ -33,20 +34,8 @@ func (cg *CRUDGenerator) registerAPIRoutes(router *gin.Engine) {
 		c.Next()
 	})
 
-	// Authentication routes (if enabled)
-	if cg.config.EnableAuth {
-		auth := router.Group(cg.config.APIBasePath + "/auth")
-		{
-			auth.POST("/login", cg.handleLogin)
-			auth.POST("/refresh", cg.handleRefreshToken)
-		}
-	}
-
-	// API routes
+	// API routes - 无需认证
 	api := router.Group(cg.config.APIBasePath)
-	if cg.config.EnableAuth {
-		api.Use(middleware.JWTAuth())
-	}
 	{
 		// Database connections
 		api.GET("/connections", cg.handleListConnections)
@@ -113,6 +102,18 @@ func (cg *CRUDGenerator) handleUIIndex(c *gin.Context) {
 		content = strings.ReplaceAll(content, "/webui/", cg.config.UIBasePath+"/")
 	}
 
+	// Inject configuration into the page
+	configScript := fmt.Sprintf(`
+		<script>
+			window.CRUD_CONFIG = {
+				api_base_path: %q,
+				ui_base_path: %q
+			};
+		</script>`, cg.config.APIBasePath, cg.config.UIBasePath)
+
+	// Insert config before closing </head> tag
+	content = strings.Replace(content, "</head>", configScript+"\n</head>", 1)
+
 	c.Header("Content-Type", "text/html")
 	c.String(200, content)
 }
@@ -132,6 +133,18 @@ func (cg *CRUDGenerator) handleUICRUDPage(c *gin.Context) {
 	if cg.config.UIBasePath != "/crud-ui" {
 		content = strings.ReplaceAll(content, "/webui/", cg.config.UIBasePath+"/")
 	}
+
+	// Inject configuration into the page
+	configScript := fmt.Sprintf(`
+		<script>
+			window.CRUD_CONFIG = {
+				api_base_path: %q,
+				ui_base_path: %q
+			};
+		</script>`, cg.config.APIBasePath, cg.config.UIBasePath)
+
+	// Insert config before closing </head> tag
+	content = strings.Replace(content, "</head>", configScript+"\n</head>", 1)
 
 	c.Header("Content-Type", "text/html")
 	c.String(200, content)
@@ -181,33 +194,15 @@ func (cg *CRUDGenerator) handleUICRUDJS(c *gin.Context) {
 	c.String(200, content)
 }
 
-// Authentication handlers
-func (cg *CRUDGenerator) handleLogin(c *gin.Context) {
-	// This would implement the login logic
-	// For now, just return an error
-	c.JSON(501, APIResponse{
-		Success: false,
-		Error:   "Authentication not implemented in package mode yet",
-	})
-}
-
-func (cg *CRUDGenerator) handleRefreshToken(c *gin.Context) {
-	// This would implement the token refresh logic
-	c.JSON(501, APIResponse{
-		Success: false,
-		Error:   "Token refresh not implemented in package mode yet",
-	})
-}
-
 // Connection handlers
 func (cg *CRUDGenerator) handleListConnections(c *gin.Context) {
 	connections := make(map[string]interface{})
-	
+
 	for id, config := range cg.dbManager.ListConnections() {
 		connections[id] = map[string]interface{}{
-			"name":    id,
-			"db_type": config.Type,
-			"host":    config.Host,
+			"name":     id,
+			"db_type":  config.Type,
+			"host":     config.Host,
 			"database": config.Database,
 		}
 	}

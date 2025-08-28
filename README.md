@@ -1,293 +1,196 @@
 # CRUD Generator
 
-现代化的Go CRUD API生成器，支持GORM、MySQL和PostgreSQL，提供完整的Web UI管理界面。
+现代化的Go CRUD包，可嵌入到现有Go应用中，支持PostgreSQL和MySQL，提供完整的Web UI管理界面。
 
-## 功能特性
-
-- 🚀 **RESTful API自动生成** - 基于数据库表配置生成完整的CRUD API
-- 📊 **智能查询支持** - 分页、排序、多种搜索类型（模糊搜索、精确匹配、范围查询等）
-- ✅ **数据验证** - 基于go-playground/validator的强大验证功能
-- 📚 **动态字典** - 从数据库动态获取下拉选项和枚举值
-- 🗄️ **多数据库支持** - PostgreSQL和MySQL双数据库支持
-- 🎯 **灵活配置** - 数据库存储的配置系统，支持运行时修改
-- 🖥️ **现代化Web UI** - 完整的管理界面，配置即时生效
-
-## 快速开始
-
-### 1. 安装依赖
+## 安装
 
 ```bash
-go mod tidy
+go get github.com/otkinlife/crud-generator
 ```
 
-### 2. 启动服务
+## 使用方法
 
-```bash
-# 方式1: 使用启动脚本
-./start-webui.sh
+### 基本用法
 
-# 方式2: 直接编译运行
-go build -o crud-generator .
-./crud-generator
+```go
+package main
 
-# 方式3: 直接运行
-go run main.go
-```
+import (
+    "log"
+    "net/http"
+    
+    "github.com/gin-gonic/gin"
+    crudgen "github.com/otkinlife/crud-generator"
+)
 
-### 3. 访问Web界面
-
-打开浏览器访问 `http://localhost:8080`
-
-## 🌟 核心功能
-
-### RESTful API自动生成
-
-基于表配置自动生成标准的RESTful API端点：
-
-- `GET /api/{config_name}/list` - 列表查询（支持分页、搜索、排序）
-- `POST /api/{config_name}/create` - 创建数据
-- `PUT /api/{config_name}/update/{id}` - 更新数据
-- `DELETE /api/{config_name}/delete/{id}` - 删除数据
-- `GET /api/{config_name}/dict/{field}` - 获取字典数据
-
-### 数据库配置管理
-
-- `GET /api/configs` - 获取所有表配置
-- `POST /api/configs` - 创建新配置
-- `PUT /api/configs/{id}` - 更新配置
-- `DELETE /api/configs/{id}` - 删除配置
-
-## 配置示例
-
-### 通过Web UI创建配置
-
-访问 `http://localhost:8080` 使用可视化界面创建表配置。
-
-### API方式创建配置
-
-```bash
-curl -X POST http://localhost:8080/api/configs \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "test",
-    "connection_id": 1,
-    "table_name": "users",
-    "create_statement": "CREATE TABLE users (id SERIAL PRIMARY KEY, name VARCHAR(100) NOT NULL, email VARCHAR(255) UNIQUE NOT NULL, age INTEGER, status VARCHAR(20) DEFAULT '\''active'\'', created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)",
-    "query_config": {
-      "pagination": true,
-      "search_fields": [
-        {
-          "field": "name",
-          "type": "fuzzy"
+func main() {
+    // 创建配置
+    config := &crudgen.Config{
+        UIEnabled:   true,
+        UIBasePath:  "/admin",      // Web UI路径
+        APIBasePath: "/api/v1",     // API路径前缀
+        DatabaseConfig: map[string]crudgen.DatabaseConnection{
+            "main": {
+                Type:     "postgresql",
+                Host:     "localhost",
+                Port:     5432,
+                Database: "your_db",
+                Username: "postgres",
+                Password: "password",
+            },
         },
-        {
-          "field": "status", 
-          "type": "single",
-          "dict_source": {
-            "table": "users",
-            "field": "status",
-            "sort_order": "ASC"
-          }
-        }
-      ],
-      "sortable_fields": ["id", "name", "created_at"]
-    },
-    "create_config": {
-      "validation_rules": {
-        "name": "required,min=2,max=100",
-        "email": "required,email"
-      }
-    },
-    "update_config": {
-      "updatable_fields": ["name", "email", "age"],
-      "validation_rules": {
-        "name": "min=2,max=100", 
-        "email": "email"
-      }
     }
-  }'
-```
-
-## API使用示例
-
-### 查询数据
-
-```bash
-# 基本查询
-curl "http://localhost:8080/api/test/list"
-
-# 分页查询
-curl "http://localhost:8080/api/test/list?page=1&page_size=10"
-
-# 搜索查询
-curl "http://localhost:8080/api/test/list?name=John&status=active"
-
-# 排序查询
-curl "http://localhost:8080/api/test/list?sort=created_at&order=desc"
-```
-
-### 创建数据
-
-```bash
-curl -X POST http://localhost:8080/api/test/create \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "John Doe",
-    "email": "john@example.com", 
-    "age": 30
-  }'
-```
-
-### 更新数据
-
-```bash
-curl -X PUT http://localhost:8080/api/test/update/1 \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "John Smith",
-    "age": 31
-  }'
-```
-
-### 删除数据
-
-```bash
-curl -X DELETE http://localhost:8080/api/test/delete/1
-```
-
-### 获取字典数据
-
-```bash
-curl "http://localhost:8080/api/test/dict/status"
-```
-
-## 配置说明
-
-### 搜索类型
-
-- `fuzzy`: 模糊搜索，使用ILIKE
-- `exact`: 精确匹配
-- `multi`: 多选，使用IN查询
-- `single`: 单选
-- `range`: 范围查询，支持min/max
-
-### 验证规则
-
-支持所有go-playground/validator的验证标签：
-
-- `required`: 必填
-- `min`, `max`: 最小/最大长度或值
-- `email`: 邮箱格式
-- `oneof`: 枚举值
-- 更多规则参见：https://pkg.go.dev/github.com/go-playground/validator/v10
-
-### 字典数据源
-
-```json
-{
-  "field": "status",
-  "type": "single",
-  "dict_source": {
-    "table": "users",
-    "field": "status",
-    "sort_order": "ASC",
-    "where": "status IS NOT NULL"
-  }
+    
+    // 创建CRUD生成器
+    generator, err := crudgen.New(config)
+    if err != nil {
+        log.Fatal("Failed to create CRUD generator:", err)
+    }
+    defer generator.Close()
+    
+    // 创建Gin路由器
+    router := gin.Default()
+    
+    // 注册CRUD路由
+    generator.RegisterRoutes(router)
+    
+    // 启动服务器
+    log.Fatal(http.ListenAndServe(":8080", router))
 }
 ```
 
-## 数据库配置
+访问 `http://localhost:8080/admin` 查看Web界面
 
-系统支持配置多个数据库连接，配置信息存储在主数据库中。
+### 使用现有数据库连接
 
-### 支持的数据库类型
+```go
+// 假设你有现有的GORM数据库连接
+var db *gorm.DB // 你的现有数据库连接
 
-- **PostgreSQL** - 推荐使用，功能最完整
-- **MySQL** - 完全支持，兼容性良好
+config := crudgen.DefaultConfig()
+config.UIBasePath = "/admin"
+config.APIBasePath = "/api/v1"
 
-### 连接配置示例
+generator, err := crudgen.NewWithGormDB(db, "main", config)
+if err != nil {
+    log.Fatal("Failed to create CRUD generator:", err)
+}
+defer generator.Close()
 
-数据库连接配置通过配置文件 `configs/db.json` 管理：
+router := gin.Default()
+generator.RegisterRoutes(router)
 
-```json
+log.Fatal(http.ListenAndServe(":8080", router))
+```
+
+### 集成到现有应用
+
+```go
+// 在现有Gin应用中集成
+router := gin.Default()
+
+// 你的现有路由
+router.GET("/", homePage)
+router.GET("/dashboard", dashboard)
+
+// 创建CRUD生成器
+config := crudgen.DefaultConfig()
+config.UIBasePath = "/admin/crud"  // 嵌入到 /admin/crud
+config.APIBasePath = "/api/admin"  // API在 /api/admin
+
+generator, err := crudgen.NewWithGormDB(yourDB, "main", config)
+if err != nil {
+    panic(err)
+}
+defer generator.Close()
+
+// 在管理员部分注册
+adminGroup := router.Group("/admin")
 {
-  "connections": [
-    {
-      "id": 1,
-      "name": "PostgreSQL主库",
-      "type": "postgres",
-      "host": "localhost",
-      "port": 5432,
-      "database": "testdb",
-      "username": "postgres",
-      "password": "password"
+    adminGroup.Use(yourAuthMiddleware()) // 你的认证中间件
+    generator.RegisterRoutes(adminGroup) // 会在 /admin/crud 下提供UI
+}
+
+http.ListenAndServe(":8080", router)
+```
+
+### 仅API模式（无UI）
+
+```go
+config := crudgen.DefaultConfig()
+config.UIEnabled = false // 禁用UI
+config.APIBasePath = "/api/v1"
+
+generator, err := crudgen.New(config)
+if err != nil {
+    panic(err)
+}
+defer generator.Close()
+
+router := gin.Default()
+generator.RegisterAPIRoutes(router) // 仅注册API路由
+
+http.ListenAndServe(":8080", router)
+```
+
+## 配置选项
+
+### 数据库配置
+
+```go
+config := &crudgen.Config{
+    UIEnabled:   true,           // 启用Web UI，默认: false
+    UIBasePath:  "/admin",       // UI路径前缀，默认: "/crud-ui"
+    APIBasePath: "/api/v1",      // API路径前缀，默认: "/api"
+    
+    DatabaseConfig: map[string]crudgen.DatabaseConnection{
+        "main": {
+            Type:         "postgresql",  // postgresql 或 mysql
+            Host:         "localhost",
+            Port:         5432,
+            Database:     "your_db",
+            Username:     "postgres",
+            Password:     "password",
+            SSLMode:      "disable",     // PostgreSQL SSL模式
+            MaxIdleConns: 10,            // 最大空闲连接数
+            MaxOpenConns: 100,           // 最大打开连接数
+        },
     },
-    {
-      "id": 2, 
-      "name": "MySQL从库",
-      "type": "mysql",
-      "host": "localhost",
-      "port": 3306,
-      "database": "testdb",
-      "username": "root",
-      "password": "password"
-    }
-  ]
 }
 ```
 
-## 运行示例
+### 表配置示例
 
-1. 启动服务：
+```go
+// 添加表配置
+userTable := &crudgen.TableConfig{
+    Name:         "users",
+    TableName:    "users", 
+    ConnectionID: "main",
+    CreateStatement: `CREATE TABLE users (
+        id SERIAL PRIMARY KEY,
+        username VARCHAR(50) UNIQUE NOT NULL,
+        email VARCHAR(100) UNIQUE NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )`,
+    QueryPagination: true,
+    Description:     "用户管理表",
+    IsActive:        true,
+}
+
+err := generator.AddTableConfig(userTable)
+if err != nil {
+    log.Printf("Failed to add table config: %v", err)
+}
+```
+
+## 示例
+
+参考 `examples/package_usage/main.go`：
+
 ```bash
-./start-webui.sh
+go run ./examples/package_usage/
 ```
-
-2. 访问Web界面：
-```bash
-open http://localhost:8080
-```
-
-3. 运行测试：
-```bash
-go test ./tests/...
-```
-
-## 架构设计
-
-```
-crud-generator/
-├── main.go             # 主服务入口，HTTP API服务器
-├── builder/            # 核心CRUD构建器
-├── config/             # 配置加载和管理
-├── database/           # 数据库连接管理器  
-├── generator/          # SQL生成器和查询构建
-├── models/             # 数据模型定义
-├── parser/             # 数据库结构解析器
-├── services/           # 业务逻辑服务层
-├── types/              # 类型定义和接口
-├── validator/          # 数据验证器
-├── webui/              # Web前端界面
-├── cmd/                # 命令行工具
-├── configs/            # 配置文件目录
-├── examples/           # 示例代码
-├── sql/                # 数据库初始化脚本
-└── tests/              # 测试用例
-```
-
-### 核心组件
-
-- **API Server** (`main.go`) - RESTful API服务，处理HTTP请求
-- **配置服务** (`services/`) - 管理表配置的CRUD操作
-- **CRUD服务** (`services/`) - 动态生成数据库操作的业务逻辑
-- **数据库管理器** (`database/`) - 多数据库连接管理
-- **查询构建器** (`generator/`) - 动态SQL生成和执行
-- **Web UI** (`webui/`) - 现代化的管理界面
-
-## 环境变量
-
-- `CRUD_DB_PATH`: 主数据库文件路径，默认为 `./main.db`
-- `CRUD_CONFIG_PATH`: 配置文件目录，默认为 `./configs`
 
 ## 许可证
 

@@ -1,129 +1,33 @@
 const { createApp } = Vue;
 
-// 认证管理器（与主页面保持一致）
-const AuthManager = {
-    tokenKey: 'crud_generator_token',
-    userKey: 'crud_generator_user',
-    
-    saveToken(tokenData) {
-        localStorage.setItem(this.tokenKey, JSON.stringify(tokenData));
-    },
-    
-    getToken() {
-        const stored = localStorage.getItem(this.tokenKey);
-        return stored ? JSON.parse(stored) : null;
-    },
-    
-    getUser() {
-        const stored = localStorage.getItem(this.userKey);
-        return stored ? JSON.parse(stored) : null;
-    },
-    
-    clearAuth() {
-        localStorage.removeItem(this.tokenKey);
-        localStorage.removeItem(this.userKey);
-    },
-    
-    isTokenExpired(tokenData) {
-        if (!tokenData || !tokenData.expires_at) return true;
-        return new Date(tokenData.expires_at) <= new Date();
-    }
-};
-
-// 创建专用的axios实例，避免与主页面的拦截器冲突
+// 创建专用的axios实例
 // 全局配置管理器（和 app.js 保持一致）
 const ConfigManager = {
     config: null,
     
-    async loadConfig() {
-        if (this.config) return this.config;
-        
-        try {
-            const response = await axios.get('/config');
-            this.config = response.data.data;
-            return this.config;
-        } catch (error) {
-            console.warn('Failed to load config, using defaults:', error);
-            // 如果获取配置失败，使用默认配置
-            this.config = {
-                api_base_path: '/api',
-                enable_auth: false,
-                ui_base_path: '/crud-ui'
-            };
-            return this.config;
+    loadConfig() {
+        // 直接从页面注入的配置获取
+        if (window.CRUD_CONFIG) {
+            this.config = window.CRUD_CONFIG;
+            return Promise.resolve(this.config);
         }
+        
+        // 如果没有注入配置，使用默认配置
+        console.warn('No config injected, using defaults');
+        this.config = {
+            api_base_path: '/api',
+            ui_base_path: '/crud-ui'
+        };
+        return Promise.resolve(this.config);
     },
     
     getApiUrl(path) {
         const basePath = this.config ? this.config.api_base_path : '/api';
         return basePath + (path.startsWith('/') ? path : '/' + path);
-    },
-    
-    isAuthEnabled() {
-        return this.config ? this.config.enable_auth : false;
-    }
-};
-
-// 认证管理器（从 app.js 复制）
-const AuthManager = {
-    tokenKey: 'crud_generator_token',
-    userKey: 'crud_generator_user',
-    
-    saveToken(tokenData) {
-        localStorage.setItem(this.tokenKey, JSON.stringify(tokenData));
-    },
-    
-    getToken() {
-        const stored = localStorage.getItem(this.tokenKey);
-        return stored ? JSON.parse(stored) : null;
-    },
-    
-    saveUser(userInfo) {
-        localStorage.setItem(this.userKey, JSON.stringify(userInfo));
-    },
-    
-    getUser() {
-        const stored = localStorage.getItem(this.userKey);
-        return stored ? JSON.parse(stored) : null;
-    },
-    
-    clearAuth() {
-        localStorage.removeItem(this.tokenKey);
-        localStorage.removeItem(this.userKey);
-    },
-    
-    isTokenExpired(tokenData) {
-        if (!tokenData || !tokenData.expires_at) return true;
-        return new Date(tokenData.expires_at) <= new Date();
     }
 };
 
 const crudAxios = axios.create();
-
-// 配置CRUD页面专用的axios拦截器
-crudAxios.interceptors.request.use(
-    config => {
-        const tokenData = AuthManager.getToken();
-        if (tokenData && !AuthManager.isTokenExpired(tokenData)) {
-            config.headers.Authorization = `Bearer ${tokenData.token}`;
-        }
-        return config;
-    },
-    error => Promise.reject(error)
-);
-
-crudAxios.interceptors.response.use(
-    response => response,
-    error => {
-        if (error.response && error.response.status === 401) {
-            // Token无效或过期，跳转到主页面登录
-            AuthManager.clearAuth();
-            alert('认证已过期，请重新登录');
-            window.location.href = '/';
-        }
-        return Promise.reject(error);
-    }
-);
 
 createApp({
     data() {
@@ -166,9 +70,8 @@ createApp({
         }
     },
     async mounted() {
-        // 首先加载配置，然后检查认证
-        await ConfigManager.loadConfig();
-        await this.checkAuthConfig();
+        // 首先加载配置
+        ConfigManager.loadConfig();
         
         // 从URL获取配置名称
         const pathParts = window.location.pathname.split('/');
@@ -182,27 +85,6 @@ createApp({
         this.loading = false;
     },
     methods: {
-        // 检查后端认证配置
-        async checkAuthConfig() {
-            try {
-                // 先检查配置中是否启用了认证
-                if (!ConfigManager.isAuthEnabled()) {
-                    // 认证未启用，直接返回
-                    return;
-                }
-                
-                // 如果启用了认证，检查token
-                const tokenData = AuthManager.getToken();
-                if (!tokenData || AuthManager.isTokenExpired(tokenData)) {
-                    alert('请先登录');
-                    window.location.href = '/';
-                    return;
-                }
-            } catch (error) {
-                console.error('Auth config check failed:', error);
-                // 其他错误忽略，继续执行
-            }
-        },
         
         async loadConfiguration() {
             try {

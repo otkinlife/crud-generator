@@ -7,7 +7,7 @@ type QueryParams struct {
 	Page     int                    `json:"page"`
 	PageSize int                    `json:"page_size"`
 	Search   map[string]interface{} `json:"search"`
-	Sort     []SortField           `json:"sort"`
+	Sort     []SortField            `json:"sort"`
 }
 
 // SortField represents a sort field configuration
@@ -35,11 +35,11 @@ type QueryResult struct {
 
 // CRUDResult represents the result of a CRUD operation
 type CRUDResult struct {
-	Success      bool                   `json:"success"`
-	Data         map[string]interface{} `json:"data,omitempty"`
-	Error        string                 `json:"error,omitempty"`
-	Message      string                 `json:"message,omitempty"`
-	ValidationErrors map[string]string  `json:"validation_errors,omitempty"`
+	Success          bool                   `json:"success"`
+	Data             map[string]interface{} `json:"data,omitempty"`
+	Error            string                 `json:"error,omitempty"`
+	Message          string                 `json:"message,omitempty"`
+	ValidationErrors map[string]string      `json:"validation_errors,omitempty"`
 }
 
 // DictItem represents a dictionary item for dropdowns
@@ -70,25 +70,9 @@ type SearchFieldConfig struct {
 	DictSourceType string `json:"dict_source_type,omitempty"`
 }
 
-// AuthConfig represents authentication configuration
-type AuthConfig struct {
-	Enabled       bool   `json:"enabled"`
-	SecretKey     string `json:"secret_key"`
-	ExpireHours   int    `json:"expire_hours"`
-	DefaultUsers  []User `json:"default_users,omitempty"`
-}
-
-// User represents a user account
-type User struct {
-	ID       string `json:"id"`
-	Username string `json:"username"`
-	Password string `json:"password"`
-	Role     string `json:"role"`
-}
-
 // ValidationRule represents a validation rule for fields
 type ValidationRule struct {
-	Field string `json:"field"`
+	Field string   `json:"field"`
 	Rules []string `json:"rules"`
 }
 
@@ -102,27 +86,27 @@ type APIResponse struct {
 
 // ConfigCreateRequest represents a request to create a new table configuration
 type ConfigCreateRequest struct {
-	Name         string `json:"name" binding:"required"`
-	TableName    string `json:"table_name" binding:"required"`
-	ConnectionID string `json:"connection_id" binding:"required"`
+	Name            string `json:"name" binding:"required"`
+	TableName       string `json:"table_name" binding:"required"`
+	ConnectionID    string `json:"connection_id" binding:"required"`
 	CreateStatement string `json:"create_statement" binding:"required"`
-	Description  string `json:"description"`
-	Tags         string `json:"tags"`
+	Description     string `json:"description"`
+	Tags            string `json:"tags"`
 }
 
-// ConfigUpdateRequest represents a request to update a table configuration  
+// ConfigUpdateRequest represents a request to update a table configuration
 type ConfigUpdateRequest struct {
-	Name         string `json:"name"`
-	TableName    string `json:"table_name"`
-	ConnectionID string `json:"connection_id"`
+	Name            string `json:"name"`
+	TableName       string `json:"table_name"`
+	ConnectionID    string `json:"connection_id"`
 	CreateStatement string `json:"create_statement"`
-	Description  string `json:"description"`
-	Tags         string `json:"tags"`
-	
+	Description     string `json:"description"`
+	Tags            string `json:"tags"`
+
 	// Field configurations
-	QueryDisplayFields  string `json:"query_display_fields"`
-	QuerySearchFields   string `json:"query_search_fields"`
-	QuerySortableFields string `json:"query_sortable_fields"`
+	QueryDisplayFields    string `json:"query_display_fields"`
+	QuerySearchFields     string `json:"query_search_fields"`
+	QuerySortableFields   string `json:"query_sortable_fields"`
 	CreateCreatableFields string `json:"create_creatable_fields"`
 	UpdateUpdatableFields string `json:"update_updatable_fields"`
 }
@@ -145,40 +129,39 @@ type EmbedOptions struct {
 
 // Middleware configuration
 type MiddlewareConfig struct {
-	EnableLogging bool     `json:"enable_logging"`
-	EnableCORS    bool     `json:"enable_cors"`
+	EnableLogging  bool     `json:"enable_logging"`
+	EnableCORS     bool     `json:"enable_cors"`
 	AllowedOrigins []string `json:"allowed_origins"`
-	EnableAuth    bool     `json:"enable_auth"`
 }
 
 // DatabaseInfo represents information about a database connection
 type DatabaseInfo struct {
-	ID           string    `json:"id"`
-	Name         string    `json:"name"`
-	Type         string    `json:"type"`
-	Host         string    `json:"host"`
-	Database     string    `json:"database"`
-	Connected    bool      `json:"connected"`
-	LastPing     time.Time `json:"last_ping"`
-	TableCount   int       `json:"table_count"`
+	ID         string    `json:"id"`
+	Name       string    `json:"name"`
+	Type       string    `json:"type"`
+	Host       string    `json:"host"`
+	Database   string    `json:"database"`
+	Connected  bool      `json:"connected"`
+	LastPing   time.Time `json:"last_ping"`
+	TableCount int       `json:"table_count"`
 }
 
 // TableInfo represents information about a database table
 type TableInfo struct {
-	Name      string      `json:"name"`
-	Schema    string      `json:"schema"`
-	Columns   []ColumnInfo `json:"columns"`
-	RowCount  int64       `json:"row_count"`
+	Name     string       `json:"name"`
+	Schema   string       `json:"schema"`
+	Columns  []ColumnInfo `json:"columns"`
+	RowCount int64        `json:"row_count"`
 }
 
 // ColumnInfo represents information about a table column
 type ColumnInfo struct {
-	Name         string `json:"name"`
-	Type         string `json:"type"`
-	Nullable     bool   `json:"nullable"`
-	DefaultValue string `json:"default_value"`
-	IsPrimaryKey bool   `json:"is_primary_key"`
-	IsAutoIncrement bool `json:"is_auto_increment"`
+	Name            string `json:"name"`
+	Type            string `json:"type"`
+	Nullable        bool   `json:"nullable"`
+	DefaultValue    string `json:"default_value"`
+	IsPrimaryKey    bool   `json:"is_primary_key"`
+	IsAutoIncrement bool   `json:"is_auto_increment"`
 }
 
 // PackageInfo contains metadata about the package

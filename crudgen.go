@@ -22,11 +22,6 @@ type Config struct {
 	// Database configuration
 	DatabaseConfig map[string]DatabaseConnection `json:"databases"`
 
-	// Authentication settings
-	EnableAuth       bool   `json:"enable_auth"`
-	JWTSecret        string `json:"jwt_secret"`
-	TokenExpireHours int    `json:"token_expire_hours"`
-
 	// UI settings
 	UIEnabled  bool   `json:"ui_enabled"`
 	UIBasePath string `json:"ui_base_path"`
@@ -93,13 +88,10 @@ type DatabaseManager struct {
 // DefaultConfig returns a default configuration
 func DefaultConfig() *Config {
 	return &Config{
-		EnableAuth:       false,
-		JWTSecret:        "crud-generator-default-secret",
-		TokenExpireHours: 2,
-		UIEnabled:        true,
-		UIBasePath:       "/crud-ui",
-		APIBasePath:      "/api",
-		DatabaseConfig:   make(map[string]DatabaseConnection),
+		UIEnabled:      true,
+		UIBasePath:     "/crud-ui",
+		APIBasePath:    "/api",
+		DatabaseConfig: make(map[string]DatabaseConnection),
 	}
 }
 

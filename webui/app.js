@@ -4,109 +4,32 @@ const { createApp } = Vue;
 const ConfigManager = {
     config: null,
     
-    async loadConfig() {
-        if (this.config) return this.config;
-        
-        try {
-            const response = await axios.get('/config');
-            this.config = response.data.data;
-            return this.config;
-        } catch (error) {
-            console.warn('Failed to load config, using defaults:', error);
-            // 如果获取配置失败，使用默认配置
-            this.config = {
-                api_base_path: '/api',
-                enable_auth: false,
-                ui_base_path: '/crud-ui'
-            };
-            return this.config;
+    loadConfig() {
+        // 直接从页面注入的配置获取
+        if (window.CRUD_CONFIG) {
+            this.config = window.CRUD_CONFIG;
+            return Promise.resolve(this.config);
         }
+        
+        // 如果没有注入配置，使用默认配置
+        console.warn('No config injected, using defaults');
+        this.config = {
+            api_base_path: '/api',
+            ui_base_path: '/crud-ui'
+        };
+        return Promise.resolve(this.config);
     },
     
     getApiUrl(path) {
         const basePath = this.config ? this.config.api_base_path : '/api';
         return basePath + (path.startsWith('/') ? path : '/' + path);
-    },
-    
-    isAuthEnabled() {
-        return this.config ? this.config.enable_auth : false;
     }
 };
-
-// 认证管理器
-const AuthManager = {
-    tokenKey: 'crud_generator_token',
-    userKey: 'crud_generator_user',
-    
-    saveToken(tokenData) {
-        localStorage.setItem(this.tokenKey, JSON.stringify(tokenData));
-    },
-    
-    getToken() {
-        const stored = localStorage.getItem(this.tokenKey);
-        return stored ? JSON.parse(stored) : null;
-    },
-    
-    saveUser(userInfo) {
-        localStorage.setItem(this.userKey, JSON.stringify(userInfo));
-    },
-    
-    getUser() {
-        const stored = localStorage.getItem(this.userKey);
-        return stored ? JSON.parse(stored) : null;
-    },
-    
-    clearAuth() {
-        localStorage.removeItem(this.tokenKey);
-        localStorage.removeItem(this.userKey);
-    },
-    
-    isTokenExpired(tokenData) {
-        if (!tokenData || !tokenData.expires_at) return true;
-        return new Date(tokenData.expires_at) <= new Date();
-    }
-};
-
-// 配置axios拦截器
-axios.interceptors.request.use(
-    config => {
-        const tokenData = AuthManager.getToken();
-        if (tokenData && !AuthManager.isTokenExpired(tokenData)) {
-            config.headers.Authorization = `Bearer ${tokenData.token}`;
-        }
-        // 不再强制要求 token，让后端决定是否需要认证
-        return config;
-    },
-    error => Promise.reject(error)
-);
-
-axios.interceptors.response.use(
-    response => response,
-    error => {
-        if (error.response && error.response.status === 401) {
-            // 仅在明确收到 401 错误时才处理认证问题
-            // 清除认证信息并尝试重新认证
-            AuthManager.clearAuth();
-            // 不立即刷新页面，而是让应用处理这个情况
-        }
-        return Promise.reject(error);
-    }
-);
 
 createApp({
     data() {
         return {
-            // 认证相关
-            isAuthenticated: false,
-            userInfo: null,
-            loginForm: {
-                username: '',
-                password: ''
-            },
-            loginError: '',
-            loggingIn: false,
-            
-            // 原有数据
+            // 应用数据
             connections: {},
             configs: [],
             selectedConfig: null,
@@ -142,7 +65,7 @@ createApp({
         }
     },
     mounted() {
-        // 首先加载配置，然后检查认证
+        // 加载配置并初始化应用
         this.initializeApp();
         
         // 初始化Bootstrap tooltips
@@ -155,132 +78,19 @@ createApp({
     },
     methods: {
         // 初始化应用
-        async initializeApp() {
+        initializeApp() {
             try {
-                await ConfigManager.loadConfig();
-                this.checkAuthConfig();
+                ConfigManager.loadConfig();
+                this.loadConnections();
+                this.loadConfigs();
             } catch (error) {
                 console.error('Failed to initialize app:', error);
-                // 即使配置加载失败，也尝试继续
-                this.checkAuthConfig();
-            }
-        },
-        
-        // 检查后端认证配置
-        async checkAuthConfig() {
-            try {
-                // 先检查配置中是否启用了认证
-                if (!ConfigManager.isAuthEnabled()) {
-                    // 认证未启用，直接进入主界面
-                    this.isAuthenticated = true;
-                    this.userInfo = { username: 'guest', role: 'user' };
-                    this.loadConnections();
-                    this.loadConfigs();
-                    return;
-                }
-                
-                // 如果启用了认证，尝试访问API检查
-                const response = await axios.get(ConfigManager.getApiUrl('/connections'));
-                this.isAuthenticated = true;
-                this.userInfo = { username: 'guest', role: 'user' };
+                // 即使配置加载失败，也尝试加载数据
                 this.loadConnections();
                 this.loadConfigs();
-            } catch (error) {
-                if (error.response && error.response.status === 401) {
-                    // 需要认证
-                    this.checkAuth();
-                } else {
-                    // 其他错误，尝试认证流程
-                    this.checkAuth();
-                }
             }
         },
         
-        // 认证相关方法
-        checkAuth() {
-            const tokenData = AuthManager.getToken();
-            const userInfo = AuthManager.getUser();
-            
-            if (tokenData && userInfo && !AuthManager.isTokenExpired(tokenData)) {
-                this.isAuthenticated = true;
-                this.userInfo = userInfo;
-                // 认证成功，加载数据
-                this.loadConnections();
-                this.loadConfigs();
-            } else {
-                this.showLogin();
-            }
-        },
-        
-        showLogin() {
-            this.isAuthenticated = false;
-            this.userInfo = null;
-            this.loginError = '';
-            this.loginForm.username = '';
-            this.loginForm.password = '';
-            AuthManager.clearAuth();
-            
-            // 显示登录模态框
-            this.$nextTick(() => {
-                const loginModal = new bootstrap.Modal(document.getElementById('loginModal'));
-                loginModal.show();
-            });
-        },
-        
-        async login() {
-            if (this.loggingIn) return;
-            
-            this.loggingIn = true;
-            this.loginError = '';
-            
-            try {
-                const response = await axios.post('/auth/login', {
-                    username: this.loginForm.username,
-                    password: this.loginForm.password
-                });
-                
-                if (response.data.success) {
-                    const tokenData = response.data.data;
-                    AuthManager.saveToken(tokenData);
-                    AuthManager.saveUser(tokenData.user_info);
-                    
-                    this.isAuthenticated = true;
-                    this.userInfo = tokenData.user_info;
-                    
-                    // 隐藏登录模态框
-                    const loginModal = bootstrap.Modal.getInstance(document.getElementById('loginModal'));
-                    if (loginModal) {
-                        loginModal.hide();
-                    }
-                    
-                    // 加载数据
-                    this.loadConnections();
-                    this.loadConfigs();
-                } else {
-                    this.loginError = response.data.error || '登录失败';
-                }
-            } catch (error) {
-                console.error('Login error:', error);
-                if (error.response && error.response.data) {
-                    this.loginError = error.response.data.error || '登录失败';
-                } else {
-                    this.loginError = '网络错误，请稍后重试';
-                }
-            } finally {
-                this.loggingIn = false;
-            }
-        },
-        
-        logout() {
-            AuthManager.clearAuth();
-            this.isAuthenticated = false;
-            this.userInfo = null;
-            this.configs = [];
-            this.connections = {};
-            this.selectedConfig = null;
-            this.showLogin();
-        },
-
         // 提取表名的方法
         extractTableName(sql) {
             if (!sql) return '';

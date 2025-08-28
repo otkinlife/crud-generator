@@ -11,7 +11,6 @@ import (
 func main() {
 	// Create configuration
 	config := &crudgen.Config{
-		EnableAuth:  false, // Disable auth for testing
 		UIEnabled:   true,
 		UIBasePath:  "/admin",
 		APIBasePath: "/api/v1",
