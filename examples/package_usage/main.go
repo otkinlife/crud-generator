@@ -12,16 +12,16 @@ func main() {
 	// Create configuration
 	config := &crudgen.Config{
 		UIEnabled:   true,
-		UIBasePath:  "/admin",
+		UIBasePath:  "/admin/ui",
 		APIBasePath: "/api/v1",
 		DatabaseConfig: map[string]crudgen.DatabaseConnection{
 			"main": {
 				Type:         "postgresql",
-				Host:         "localhost",
+				Host:         "nas.kcjia.cn",
 				Port:         5432,
-				Database:     "test_crud_db",
-				Username:     "postgres",
-				Password:     "password",
+				Database:     "crud_generator",
+				Username:     "kcjia",
+				Password:     "kcjia321",
 				SSLMode:      "disable",
 				MaxIdleConns: 10,
 				MaxOpenConns: 100,
@@ -35,32 +35,6 @@ func main() {
 		log.Fatal("Failed to create CRUD generator:", err)
 	}
 	defer generator.Close()
-
-	// Add a sample table configuration
-	userTableConfig := &crudgen.TableConfig{
-		Name:         "users",
-		TableName:    "users",
-		ConnectionID: "main",
-		CreateStatement: `
-			CREATE TABLE users (
-				id SERIAL PRIMARY KEY,
-				username VARCHAR(50) UNIQUE NOT NULL,
-				email VARCHAR(100) UNIQUE NOT NULL,
-				full_name VARCHAR(100),
-				age INTEGER,
-				created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-				updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-			)
-		`,
-		QueryPagination: true,
-		Description:     "User management table",
-		IsActive:        true,
-		Version:         1,
-	}
-
-	if err := generator.AddTableConfig(userTableConfig); err != nil {
-		log.Printf("Warning: Failed to add user table config: %v", err)
-	}
 
 	// Create router and register routes
 	router := gin.Default()

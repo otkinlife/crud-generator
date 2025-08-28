@@ -12,12 +12,16 @@ import (
 	"github.com/otkinlife/crud-generator/database"
 	"github.com/otkinlife/crud-generator/models"
 	"github.com/otkinlife/crud-generator/types"
+	"gorm.io/gorm"
 )
 
 type CRUDService struct {
 	configService *ConfigService
 	dbManager     *database.DatabaseManager
 	validator     *validator.Validate
+	// For package usage - direct DB access
+	mainDB      *gorm.DB
+	businessDBs map[string]*gorm.DB
 }
 
 func NewCRUDService() *CRUDService {
@@ -28,13 +32,50 @@ func NewCRUDService() *CRUDService {
 	}
 }
 
+func NewCRUDServiceWithDB(db *gorm.DB, configService *ConfigService) *CRUDService {
+	return &CRUDService{
+		configService: configService,
+		dbManager:     nil,
+		validator:     validator.New(),
+		mainDB:        db,
+		businessDBs:   map[string]*gorm.DB{"default": db}, // 对于package usage，默认使用同一个数据库
+	}
+}
+
 func (s *CRUDService) GetConfigByName(configName string) (*models.TableConfiguration, error) {
 	var config models.TableConfiguration
-	err := s.dbManager.GetMainDB().Where("name = ? AND is_active = ?", configName, true).First(&config).Error
+
+	// Choose database access method based on service type
+	var err error
+	if s.mainDB != nil {
+		// Package usage - use direct DB access
+		err = s.mainDB.Where("name = ? AND is_active = ?", configName, true).First(&config).Error
+	} else {
+		// Standalone usage - use dbManager
+		err = s.dbManager.GetMainDB().Where("name = ? AND is_active = ?", configName, true).First(&config).Error
+	}
 	if err != nil {
 		return nil, fmt.Errorf("configuration '%s' not found: %w", configName, err)
 	}
 	return &config, nil
+}
+
+// getBusinessDB returns the appropriate database connection for business operations
+func (s *CRUDService) getBusinessDB(connectionID string) (*gorm.DB, error) {
+	if s.businessDBs != nil {
+		// Package usage - use predefined connections
+		if db, exists := s.businessDBs[connectionID]; exists {
+			return db, nil
+		}
+		// Fallback to default connection
+		if db, exists := s.businessDBs["default"]; exists {
+			return db, nil
+		}
+		return nil, fmt.Errorf("no database connection available for %s", connectionID)
+	} else {
+		// Standalone usage - use dbManager
+		return s.dbManager.GetConnection(connectionID)
+	}
 }
 
 func (s *CRUDService) List(configName string, params *types.QueryParams) (*types.QueryResult, error) {
@@ -44,7 +85,7 @@ func (s *CRUDService) List(configName string, params *types.QueryParams) (*types
 	}
 
 	// 获取对应的数据库连接
-	db, err := s.dbManager.GetConnection(config.ConnectionID)
+	db, err := s.getBusinessDB(config.ConnectionID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get database connection: %w", err)
 	}
@@ -224,7 +265,7 @@ func (s *CRUDService) Create(configName string, data map[string]interface{}) (*t
 	fmt.Printf("Config loaded: name=%s, table_name=%s, create_creatable_fields length=%d\n", config.Name, config.DBTableName, len(config.CreateCreatableFields))
 
 	// 获取对应的数据库连接
-	db, err := s.dbManager.GetConnection(config.ConnectionID)
+	db, err := s.getBusinessDB(config.ConnectionID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get database connection: %w", err)
 	}
@@ -362,7 +403,7 @@ func (s *CRUDService) Update(configName string, id interface{}, data map[string]
 	}
 
 	// 获取对应的数据库连接
-	db, err := s.dbManager.GetConnection(config.ConnectionID)
+	db, err := s.getBusinessDB(config.ConnectionID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get database connection: %w", err)
 	}
@@ -456,7 +497,7 @@ func (s *CRUDService) Delete(configName string, id interface{}) (*types.DeleteRe
 	}
 
 	// 获取对应的数据库连接
-	db, err := s.dbManager.GetConnection(config.ConnectionID)
+	db, err := s.getBusinessDB(config.ConnectionID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get database connection: %w", err)
 	}
@@ -536,7 +577,7 @@ func (s *CRUDService) GetDict(configName string, field string) ([]types.DictItem
 	}
 
 	// 获取对应的数据库连接
-	db, err := s.dbManager.GetConnection(config.ConnectionID)
+	db, err := s.getBusinessDB(config.ConnectionID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get database connection: %w", err)
 	}

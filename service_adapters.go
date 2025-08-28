@@ -1,6 +1,7 @@
 package crudgen
 
 import (
+	"fmt"
 	"github.com/otkinlife/crud-generator/models"
 	"github.com/otkinlife/crud-generator/services"
 	"github.com/otkinlife/crud-generator/types"
@@ -13,8 +14,12 @@ type ConfigService struct {
 
 // NewConfigService creates a new config service instance
 func NewConfigService(dbManager *DatabaseManager) *ConfigService {
+	db, err := dbManager.GetMainDB()
+	if err != nil {
+		panic(fmt.Sprintf("Failed to get main database: %v", err))
+	}
 	return &ConfigService{
-		internal: services.NewConfigService(),
+		internal: services.NewConfigServiceWithConnectionsDB(db),
 	}
 }
 
@@ -150,8 +155,13 @@ type CRUDService struct {
 
 // NewCRUDService creates a new CRUD service instance
 func NewCRUDService(dbManager *DatabaseManager) *CRUDService {
+	db, err := dbManager.GetMainDB()
+	if err != nil {
+		panic(fmt.Sprintf("Failed to get main database: %v", err))
+	}
+	configService := NewConfigService(dbManager)
 	return &CRUDService{
-		internal: services.NewCRUDService(),
+		internal: services.NewCRUDServiceWithDB(db, configService.internal),
 	}
 }
 

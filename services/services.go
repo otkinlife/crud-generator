@@ -25,6 +25,22 @@ func NewConfigService() *ConfigService {
 	}
 }
 
+func NewConfigServiceWithDB(db *gorm.DB, dbManager *database.DatabaseManager) *ConfigService {
+	return &ConfigService{
+		db:        db,
+		validator: validator.New(),
+		dbManager: dbManager,
+	}
+}
+
+func NewConfigServiceWithConnectionsDB(db *gorm.DB) *ConfigService {
+	return &ConfigService{
+		db:        db,
+		validator: validator.New(),
+		dbManager: nil, // For package usage, we don't need the full dbManager
+	}
+}
+
 func (s *ConfigService) CreateConfig(config *models.TableConfiguration) error {
 	if err := s.validator.Struct(config); err != nil {
 		return fmt.Errorf("validation failed: %w", err)
@@ -71,9 +87,11 @@ func (s *ConfigService) GetConfigs(connectionID string) ([]models.ConfigDetails,
 
 	// 填充连接信息
 	for i := range configs {
-		if dbConfig, err := s.dbManager.GetConnectionConfig(configs[i].ConnectionID); err == nil {
-			configs[i].ConnectionName = dbConfig.Name
-			configs[i].DbType = dbConfig.DbType
+		if s.dbManager != nil {
+			if dbConfig, err := s.dbManager.GetConnectionConfig(configs[i].ConnectionID); err == nil {
+				configs[i].ConnectionName = dbConfig.Name
+				configs[i].DbType = dbConfig.DbType
+			}
 		}
 	}
 

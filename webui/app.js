@@ -1,3 +1,7 @@
+console.log('app.js loaded');
+console.log('Vue:', typeof Vue);
+console.log('window.CRUD_CONFIG:', window.CRUD_CONFIG);
+
 const { createApp } = Vue;
 
 // 全局配置管理器
@@ -26,7 +30,24 @@ const ConfigManager = {
     }
 };
 
-createApp({
+// 等待DOM加载完成后再创建Vue应用
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('DOM loaded, about to create Vue app');
+    const appElement = document.querySelector('#app');
+    console.log('Target element:', appElement);
+    console.log('Target element innerHTML length:', appElement ? appElement.innerHTML.length : 'element not found');
+
+    if (!appElement) {
+        console.error('App element not found!');
+        return;
+    }
+
+    // 保存原始HTML内容作为模板
+    const template = appElement.innerHTML;
+    console.log('Saved template, length:', template.length);
+
+    const app = createApp({
+        template: template.trim() ? template : '<div>No template found</div>',
     data() {
         return {
             // 应用数据
@@ -65,16 +86,25 @@ createApp({
         }
     },
     mounted() {
-        // 加载配置并初始化应用
-        this.initializeApp();
-        
-        // 初始化Bootstrap tooltips
-        this.$nextTick(() => {
-            const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
-            tooltipTriggerList.map(function (tooltipTriggerEl) {
-                return new bootstrap.Tooltip(tooltipTriggerEl);
+        console.log('Vue mounted() called');
+        try {
+            // 加载配置并初始化应用
+            console.log('Calling initializeApp()');
+            this.initializeApp();
+            console.log('initializeApp() completed');
+            
+            // 初始化Bootstrap tooltips
+            this.$nextTick(() => {
+                console.log('nextTick callback called');
+                const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+                tooltipTriggerList.map(function (tooltipTriggerEl) {
+                    return new bootstrap.Tooltip(tooltipTriggerEl);
+                });
+                console.log('Bootstrap tooltips initialized');
             });
-        });
+        } catch (error) {
+            console.error('Error in mounted():', error);
+        }
     },
     methods: {
         // 初始化应用
@@ -1056,4 +1086,23 @@ createApp({
             }
         }
     }
-}).mount('#app');
+});
+
+    // 添加Vue错误处理器
+    app.config.errorHandler = (err, instance, info) => {
+        console.error('Vue error handler caught:', err);
+        console.error('Error info:', info);
+        console.error('Component instance:', instance);
+    };
+
+    console.log('About to mount Vue app');
+    console.log('App element after Vue creation:', appElement);
+
+    try {
+        app.mount('#app');
+        console.log('Vue app mounted successfully');
+    } catch (error) {
+        console.error('Failed to mount Vue app:', error);
+        console.error('Error stack:', error.stack);
+    }
+}); // 结束DOMContentLoaded事件监听器
