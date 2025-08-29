@@ -5,6 +5,9 @@ package crudgen
 import (
 	"database/sql"
 	"net/http"
+	"net/url"
+	"strconv"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -124,6 +127,24 @@ func New(config *Config) (*CRUDGenerator, error) {
 func NewWithGormDB(db *gorm.DB, connectionName string, config *Config) (*CRUDGenerator, error) {
 	if config == nil {
 		config = DefaultConfig()
+	}
+
+	// If DatabaseConfig is empty, initialize it
+	if config.DatabaseConfig == nil {
+		config.DatabaseConfig = make(map[string]DatabaseConnection)
+	}
+
+	// Add the provided connection to config if not present
+	if _, exists := config.DatabaseConfig[connectionName]; !exists {
+		// Extract database info from the GORM DB connection
+		dbConfig, err := extractDatabaseConfig(db)
+		if err != nil {
+			// If extraction fails, use a placeholder
+			dbConfig = DatabaseConnection{
+				Type: "unknown",
+			}
+		}
+		config.DatabaseConfig[connectionName] = dbConfig
 	}
 
 	// Initialize database manager with existing connection
@@ -246,6 +267,199 @@ func (cg *CRUDGenerator) GetDict(configName, field string) ([]DictItem, error) {
 // Close closes all database connections
 func (cg *CRUDGenerator) Close() error {
 	return cg.dbManager.Close()
+}
+
+// extractDatabaseConfig extracts database configuration from a GORM DB connection
+func extractDatabaseConfig(db *gorm.DB) (DatabaseConnection, error) {
+	config := DatabaseConnection{}
+
+	// Get the underlying sql.DB
+	sqlDB, err := db.DB()
+	if err != nil {
+		return config, err
+	}
+
+	// Get the driver name to determine database type
+	dialector := db.Dialector
+	driverName := dialector.Name()
+
+	switch driverName {
+	case "postgres":
+		config.Type = "postgresql"
+	case "mysql":
+		config.Type = "mysql"
+	case "sqlite":
+		config.Type = "sqlite"
+	default:
+		config.Type = driverName
+	}
+
+	// Try to extract connection details from the data source name if possible
+	// This is database-specific and may not always work
+	if dsn := getDSNFromDialector(dialector); dsn != "" {
+		extractedConfig := parseDSN(dsn, config.Type)
+		if extractedConfig.Host != "" {
+			config.Host = extractedConfig.Host
+		}
+		if extractedConfig.Port != 0 {
+			config.Port = extractedConfig.Port
+		}
+		if extractedConfig.Database != "" {
+			config.Database = extractedConfig.Database
+		}
+		if extractedConfig.Username != "" {
+			config.Username = extractedConfig.Username
+		}
+		if extractedConfig.SSLMode != "" {
+			config.SSLMode = extractedConfig.SSLMode
+		}
+	}
+
+	// Get connection pool settings
+	stats := sqlDB.Stats()
+	config.MaxOpenConns = stats.MaxOpenConnections
+	config.MaxIdleConns = stats.MaxIdleConns
+
+	return config, nil
+}
+
+// getDSNFromDialector attempts to get the DSN from various GORM dialectors
+func getDSNFromDialector(dialector gorm.Dialector) string {
+	// This uses reflection-like approach to get DSN from different dialectors
+	// Each dialector type stores DSN differently
+	switch d := dialector.(type) {
+	default:
+		// Try to use string representation as fallback
+		dsn := strings.TrimPrefix(strings.TrimSuffix(d.String(), ")"), d.Name()+"(")
+		return dsn
+	}
+}
+
+// parseDSN parses a database connection string based on the database type
+func parseDSN(dsn, dbType string) DatabaseConnection {
+	config := DatabaseConnection{}
+
+	switch dbType {
+	case "postgresql":
+		config = parsePostgresDSN(dsn)
+	case "mysql":
+		config = parseMySQLDSN(dsn)
+	case "sqlite":
+		config = parseSQLiteDSN(dsn)
+	}
+
+	return config
+}
+
+// parsePostgresDSN parses PostgreSQL connection string
+func parsePostgresDSN(dsn string) DatabaseConnection {
+	config := DatabaseConnection{}
+
+	// PostgreSQL DSN can be in various formats:
+	// "postgres://user:password@host:port/dbname?sslmode=disable"
+	// "host=localhost port=5432 user=user password=password dbname=db sslmode=disable"
+
+	if strings.HasPrefix(dsn, "postgres://") || strings.HasPrefix(dsn, "postgresql://") {
+		// URL format
+		if u, err := url.Parse(dsn); err == nil {
+			config.Host = u.Hostname()
+			if port := u.Port(); port != "" {
+				if p, err := strconv.Atoi(port); err == nil {
+					config.Port = p
+				}
+			}
+			config.Database = strings.TrimPrefix(u.Path, "/")
+			if u.User != nil {
+				config.Username = u.User.Username()
+				config.Password, _ = u.User.Password()
+			}
+			if sslmode := u.Query().Get("sslmode"); sslmode != "" {
+				config.SSLMode = sslmode
+			}
+		}
+	} else {
+		// Key-value format
+		pairs := strings.Fields(dsn)
+		for _, pair := range pairs {
+			if kv := strings.SplitN(pair, "=", 2); len(kv) == 2 {
+				key, value := kv[0], kv[1]
+				switch key {
+				case "host":
+					config.Host = value
+				case "port":
+					if p, err := strconv.Atoi(value); err == nil {
+						config.Port = p
+					}
+				case "user":
+					config.Username = value
+				case "password":
+					config.Password = value
+				case "dbname":
+					config.Database = value
+				case "sslmode":
+					config.SSLMode = value
+				}
+			}
+		}
+	}
+
+	return config
+}
+
+// parseMySQLDSN parses MySQL connection string
+func parseMySQLDSN(dsn string) DatabaseConnection {
+	config := DatabaseConnection{}
+
+	// MySQL DSN format: [username[:password]@][protocol[(address)]]/dbname[?param1=value1&...&paramN=valueN]
+	// Example: "user:password@tcp(localhost:3306)/dbname"
+
+	parts := strings.SplitN(dsn, "/", 2)
+	if len(parts) == 2 {
+		config.Database = strings.SplitN(parts[1], "?", 2)[0]
+
+		// Parse the part before the database name
+		beforeDB := parts[0]
+
+		// Extract address part
+		if strings.Contains(beforeDB, "(") && strings.Contains(beforeDB, ")") {
+			start := strings.Index(beforeDB, "(")
+			end := strings.Index(beforeDB, ")")
+			address := beforeDB[start+1 : end]
+
+			if strings.Contains(address, ":") {
+				hostPort := strings.SplitN(address, ":", 2)
+				config.Host = hostPort[0]
+				if p, err := strconv.Atoi(hostPort[1]); err == nil {
+					config.Port = p
+				}
+			} else {
+				config.Host = address
+			}
+
+			beforeDB = beforeDB[:start]
+		}
+
+		// Extract username and password
+		if strings.Contains(beforeDB, "@") {
+			userPart := strings.TrimSuffix(beforeDB, "@")
+			if strings.Contains(userPart, ":") {
+				userPass := strings.SplitN(userPart, ":", 2)
+				config.Username = userPass[0]
+				config.Password = userPass[1]
+			} else {
+				config.Username = userPart
+			}
+		}
+	}
+
+	return config
+}
+
+// parseSQLiteDSN parses SQLite connection string
+func parseSQLiteDSN(dsn string) DatabaseConnection {
+	config := DatabaseConnection{}
+	config.Database = dsn // For SQLite, the DSN is typically just the file path
+	return config
 }
 
 // Internal methods are implemented in handlers.go
