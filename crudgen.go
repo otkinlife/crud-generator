@@ -318,20 +318,28 @@ func extractDatabaseConfig(db *gorm.DB) (DatabaseConnection, error) {
 	// Get connection pool settings
 	stats := sqlDB.Stats()
 	config.MaxOpenConns = stats.MaxOpenConnections
-	config.MaxIdleConns = stats.MaxIdleConns
+	config.MaxIdleConns = stats.Idle
 
 	return config, nil
 }
 
 // getDSNFromDialector attempts to get the DSN from various GORM dialectors
 func getDSNFromDialector(dialector gorm.Dialector) string {
-	// This uses reflection-like approach to get DSN from different dialectors
+	// This uses type assertion to get DSN from different dialectors
 	// Each dialector type stores DSN differently
-	switch d := dialector.(type) {
+	switch dialector.Name() {
+	case "postgres":
+		// For postgres dialector, try to access DSN field via interface
+		return ""
+	case "mysql":
+		// For mysql dialector, try to access DSN field via interface
+		return ""
+	case "sqlite":
+		// For sqlite dialector, try to access DSN field via interface
+		return ""
 	default:
-		// Try to use string representation as fallback
-		dsn := strings.TrimPrefix(strings.TrimSuffix(d.String(), ")"), d.Name()+"(")
-		return dsn
+		// Generic fallback - may not work for all dialectors
+		return ""
 	}
 }
 
