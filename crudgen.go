@@ -10,6 +10,8 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
+	"github.com/otkinlife/crud-generator/database"
+	"github.com/otkinlife/crud-generator/models"
 	"gorm.io/gorm"
 )
 
@@ -28,7 +30,6 @@ type Config struct {
 	// UI settings
 	UIEnabled  bool   `json:"ui_enabled"`
 	UIBasePath string `json:"ui_base_path"`
-
 	// API settings
 	APIBasePath string `json:"api_base_path"`
 }
@@ -134,34 +135,58 @@ func NewWithGormDB(db *gorm.DB, connectionName string, config *Config) (*CRUDGen
 		config.DatabaseConfig = make(map[string]DatabaseConnection)
 	}
 
-	// Add the provided connection to config if not present
-	if _, exists := config.DatabaseConfig[connectionName]; !exists {
-		// Extract database info from the GORM DB connection
-		dbConfig, err := extractDatabaseConfig(db)
-		if err != nil {
-			// If extraction fails, use a placeholder
-			dbConfig = DatabaseConnection{
-				Type: "unknown",
-			}
+	// Extract database info from the GORM DB connection
+	dbConfig, err := extractDatabaseConfig(db)
+	if err != nil {
+		// If extraction fails, use a placeholder
+		dbConfig = DatabaseConnection{
+			Type: "unknown",
 		}
-		config.DatabaseConfig[connectionName] = dbConfig
 	}
 
-	// Initialize database manager with existing connection
-	dbManager := &DatabaseManager{
+	// Convert to models.DatabaseConfig format
+	modelConfig := &models.DatabaseConfig{
+		Name:         connectionName,
+		DbType:       dbConfig.Type,
+		Host:         dbConfig.Host,
+		Port:         dbConfig.Port,
+		DatabaseName: dbConfig.Database,
+		Username:     dbConfig.Username,
+		Password:     dbConfig.Password,
+		SSLMode:      dbConfig.SSLMode,
+		MaxOpenConns: dbConfig.MaxOpenConns,
+		MaxIdleConns: dbConfig.MaxIdleConns,
+	}
+
+	// Set default values if not provided
+	if modelConfig.MaxOpenConns == 0 {
+		modelConfig.MaxOpenConns = 100
+	}
+	if modelConfig.MaxIdleConns == 0 {
+		modelConfig.MaxIdleConns = 10
+	}
+
+	// Get the global database manager and set the existing connection
+	dbManager := database.GetDatabaseManager()
+	dbManager.SetExistingConnection(connectionName, db, modelConfig)
+
+	// Add to package-level config for compatibility
+	config.DatabaseConfig[connectionName] = dbConfig
+
+	// Initialize services using a simplified DatabaseManager for backward compatibility
+	simpleDM := &DatabaseManager{
 		connections: map[string]*gorm.DB{connectionName: db},
 		config:      config.DatabaseConfig,
 	}
 
-	// Initialize services
 	services := &Services{
-		ConfigService: NewConfigService(dbManager),
-		CRUDService:   NewCRUDService(dbManager),
+		ConfigService: NewConfigService(simpleDM),
+		CRUDService:   NewCRUDService(simpleDM),
 	}
 
 	return &CRUDGenerator{
 		config:    config,
-		dbManager: dbManager,
+		dbManager: simpleDM,
 		services:  services,
 	}, nil
 }

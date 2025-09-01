@@ -26,6 +26,7 @@ type DatabaseManager struct {
 	pool           *ConnectionPool
 	dbConfigs      models.DatabaseConfigs
 	configFilePath string
+	memoryConfigs  models.DatabaseConfigs // 内存中的配置（如从GORM DB解析的）
 }
 
 var (
@@ -46,22 +47,68 @@ func GetDatabaseManager() *DatabaseManager {
 				connections: make(map[string]*gorm.DB),
 			},
 			configFilePath: filepath.Join(configDir, "db.json"),
+			memoryConfigs:  make(models.DatabaseConfigs),
 		}
 	})
 	return instance
 }
 
 func (dm *DatabaseManager) LoadConfigs() error {
+	// 初始化配置为空map
+	dm.dbConfigs = make(models.DatabaseConfigs)
+
+	// 首先尝试从文件加载配置
 	data, err := os.ReadFile(dm.configFilePath)
-	if err != nil {
-		return fmt.Errorf("failed to read database config file: %w", err)
+	if err == nil {
+		// 文件存在，解析JSON配置
+		var fileConfigs models.DatabaseConfigs
+		if err := json.Unmarshal(data, &fileConfigs); err != nil {
+			return fmt.Errorf("failed to parse database config: %w", err)
+		}
+		// 合并文件配置
+		for key, config := range fileConfigs {
+			dm.dbConfigs[key] = config
+		}
+	}
+	// 文件不存在时不报错，继续处理内存配置
+
+	// 合并内存中的配置（来自NewWithGormDB等方法）
+	if dm.memoryConfigs != nil {
+		for key, config := range dm.memoryConfigs {
+			// 内存配置优先级较高，会覆盖同名的文件配置
+			dm.dbConfigs[key] = config
+		}
 	}
 
-	if err := json.Unmarshal(data, &dm.dbConfigs); err != nil {
-		return fmt.Errorf("failed to parse database config: %w", err)
+	// 如果既没有文件配置也没有内存配置，返回错误
+	if len(dm.dbConfigs) == 0 {
+		return fmt.Errorf("no database configurations found (neither file nor memory)")
 	}
 
 	return nil
+}
+
+// SetMemoryConfig 设置内存中的数据库配置
+func (dm *DatabaseManager) SetMemoryConfig(connectionID string, config *models.DatabaseConfig) {
+	if dm.memoryConfigs == nil {
+		dm.memoryConfigs = make(models.DatabaseConfigs)
+	}
+	dm.memoryConfigs[connectionID] = config
+}
+
+// SetExistingConnection 设置一个已存在的GORM连接和其配置
+func (dm *DatabaseManager) SetExistingConnection(connectionID string, db *gorm.DB, config *models.DatabaseConfig) {
+	dm.pool.mu.Lock()
+	defer dm.pool.mu.Unlock()
+
+	// 设置连接
+	dm.pool.connections[connectionID] = db
+
+	// 设置内存配置
+	if dm.memoryConfigs == nil {
+		dm.memoryConfigs = make(models.DatabaseConfigs)
+	}
+	dm.memoryConfigs[connectionID] = config
 }
 
 func (dm *DatabaseManager) InitMainDB() error {
