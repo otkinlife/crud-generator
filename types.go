@@ -1,6 +1,10 @@
 package crudgen
 
-import "time"
+import (
+	"time"
+
+	"github.com/gin-gonic/gin"
+)
 
 // QueryParams represents parameters for querying data
 type QueryParams struct {
@@ -129,9 +133,17 @@ type EmbedOptions struct {
 
 // Middleware configuration
 type MiddlewareConfig struct {
+	// Legacy fields for backward compatibility
 	EnableLogging  bool     `json:"enable_logging"`
 	EnableCORS     bool     `json:"enable_cors"`
 	AllowedOrigins []string `json:"allowed_origins"`
+
+	// New middleware plugin system (not serialized, only for runtime)
+	GlobalMiddlewares []gin.HandlerFunc            `json:"-"`
+	APIMiddlewares    []gin.HandlerFunc            `json:"-"`
+	UIMiddlewares     []gin.HandlerFunc            `json:"-"`
+	RouteMiddlewares  map[string][]gin.HandlerFunc `json:"-"`
+	PublicRoutes      []string                     `json:"public_routes"`
 }
 
 // DatabaseInfo represents information about a database connection

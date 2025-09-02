@@ -40,24 +40,6 @@ type Config struct {
 	MiddlewareConfig *MiddlewareConfig `json:"-"` // Not serialized, only for runtime
 }
 
-// MiddlewareConfig holds middleware configuration
-type MiddlewareConfig struct {
-	// Global middlewares applied to all routes
-	GlobalMiddlewares []gin.HandlerFunc `json:"-"`
-
-	// API-specific middlewares
-	APIMiddlewares []gin.HandlerFunc `json:"-"`
-
-	// UI-specific middlewares
-	UIMiddlewares []gin.HandlerFunc `json:"-"`
-
-	// Route-specific middlewares
-	RouteMiddlewares map[string][]gin.HandlerFunc `json:"-"`
-
-	// Public routes (skip global middlewares)
-	PublicRoutes []string `json:"public_routes"`
-}
-
 // MiddlewareBuilder provides fluent API for middleware configuration
 type MiddlewareBuilder struct {
 	config *MiddlewareConfig
@@ -92,6 +74,9 @@ func (mb *MiddlewareBuilder) UI(middlewares ...gin.HandlerFunc) *MiddlewareBuild
 
 // Route adds middlewares for specific route patterns
 func (mb *MiddlewareBuilder) Route(pattern string, middlewares ...gin.HandlerFunc) *MiddlewareBuilder {
+	if mb.config.RouteMiddlewares == nil {
+		mb.config.RouteMiddlewares = make(map[string][]gin.HandlerFunc)
+	}
 	mb.config.RouteMiddlewares[pattern] = append(mb.config.RouteMiddlewares[pattern], middlewares...)
 	return mb
 }
