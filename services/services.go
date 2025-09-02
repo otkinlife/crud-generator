@@ -139,10 +139,31 @@ func (s *ConfigService) UpdateConfig(id uint, config *models.TableConfiguration)
 		return fmt.Errorf("connection '%s' not found in database configuration", config.ConnectionID)
 	}
 
-	config.ID = id
 	config.Version++ // 增加版本号
 
-	result := s.db.Model(&models.TableConfiguration{}).Where("id = ?", id).Updates(config)
+	// 避免更新主键ID，只更新需要更新的字段
+	updateData := map[string]interface{}{
+		"connection_id":           config.ConnectionID,
+		"name":                    config.Name,
+		"table_name":              config.DBTableName,
+		"create_statement":        config.CreateStatement,
+		"query_pagination":        config.QueryPagination,
+		"query_display_fields":    config.QueryDisplayFields,
+		"query_search_fields":     config.QuerySearchFields,
+		"query_sortable_fields":   config.QuerySortableFields,
+		"create_creatable_fields": config.CreateCreatableFields,
+		"create_validation_rules": config.CreateValidationRules,
+		"create_default_values":   config.CreateDefaultValues,
+		"update_updatable_fields": config.UpdateUpdatableFields,
+		"update_validation_rules": config.UpdateValidationRules,
+		"other_rules":             config.OtherRules,
+		"description":             config.Description,
+		"tags":                    config.Tags,
+		"is_active":               config.IsActive,
+		"version":                 config.Version,
+	}
+
+	result := s.db.Model(&models.TableConfiguration{}).Where("id = ?", id).Updates(updateData)
 	if result.Error != nil {
 		return result.Error
 	}
