@@ -4,6 +4,7 @@ package crudgen
 
 import (
 	"database/sql"
+	"fmt"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -12,6 +13,8 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/otkinlife/crud-generator/database"
 	"github.com/otkinlife/crud-generator/models"
+	"gorm.io/driver/mysql"
+	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
 
@@ -193,9 +196,30 @@ func NewWithGormDB(db *gorm.DB, connectionName string, config *Config) (*CRUDGen
 
 // NewWithSQLDB creates a new CRUD generator instance using an existing sql.DB connection
 func NewWithSQLDB(sqlDB *sql.DB, dbType, connectionName string, config *Config) (*CRUDGenerator, error) {
-	// This would convert sql.DB to gorm.DB and then call NewWithGormDB
-	// Implementation depends on the database type (postgres, mysql, etc.)
-	panic("Not implemented yet - will be added in next iteration")
+	// Convert sql.DB to gorm.DB based on database type
+	var dialector gorm.Dialector
+
+	switch dbType {
+	case "postgresql", "postgres":
+		dialector = postgres.New(postgres.Config{
+			Conn: sqlDB,
+		})
+	case "mysql":
+		dialector = mysql.New(mysql.Config{
+			Conn: sqlDB,
+		})
+	default:
+		return nil, fmt.Errorf("unsupported database type: %s", dbType)
+	}
+
+	// Create GORM DB from sql.DB
+	db, err := gorm.Open(dialector, &gorm.Config{})
+	if err != nil {
+		return nil, fmt.Errorf("failed to create GORM DB from sql.DB: %w", err)
+	}
+
+	// Use NewWithGormDB to create the CRUD generator
+	return NewWithGormDB(db, connectionName, config)
 }
 
 // RegisterRoutes registers all CRUD routes to the given gin router
