@@ -2,6 +2,7 @@ package crudgen
 
 import (
 	"fmt"
+	"github.com/otkinlife/crud-generator/database"
 	"github.com/otkinlife/crud-generator/models"
 	"github.com/otkinlife/crud-generator/services"
 	"github.com/otkinlife/crud-generator/types"
@@ -18,8 +19,12 @@ func NewConfigService(dbManager *DatabaseManager) *ConfigService {
 	if err != nil {
 		panic(fmt.Sprintf("Failed to get main database: %v", err))
 	}
+
+	// Get the global database manager for full functionality
+	globalDBManager := database.GetDatabaseManager()
+
 	return &ConfigService{
-		internal: services.NewConfigServiceWithConnectionsDB(db),
+		internal: services.NewConfigServiceWithDB(db, globalDBManager),
 	}
 }
 
