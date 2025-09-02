@@ -84,6 +84,36 @@ func (cs *ConfigService) GetConfigByNameAsStruct(name string) (*TableConfig, err
 	}, nil
 }
 
+// GetConfigByIDAsStruct retrieves a config by ID and converts to package struct
+func (cs *ConfigService) GetConfigByIDAsStruct(id uint) (*TableConfig, error) {
+	internalConfig, err := cs.internal.GetConfigByID(id)
+	if err != nil {
+		return nil, err
+	}
+
+	// Convert internal model to package struct
+	return &TableConfig{
+		ID:                    internalConfig.ID,
+		Name:                  internalConfig.Name,
+		TableName:             internalConfig.DBTableName,
+		ConnectionID:          internalConfig.ConnectionID,
+		CreateStatement:       internalConfig.CreateStatement,
+		QueryPagination:       internalConfig.QueryPagination,
+		QueryDisplayFields:    internalConfig.QueryDisplayFields,
+		QuerySearchFields:     internalConfig.QuerySearchFields,
+		QuerySortableFields:   internalConfig.QuerySortableFields,
+		CreateCreatableFields: internalConfig.CreateCreatableFields,
+		CreateValidationRules: internalConfig.CreateValidationRules,
+		CreateDefaultValues:   internalConfig.CreateDefaultValues,
+		UpdateUpdatableFields: internalConfig.UpdateUpdatableFields,
+		UpdateValidationRules: internalConfig.UpdateValidationRules,
+		Description:           internalConfig.Description,
+		Tags:                  internalConfig.Tags,
+		IsActive:              internalConfig.IsActive,
+		Version:               internalConfig.Version,
+	}, nil
+}
+
 // GetConfigsAsStruct retrieves all configs and converts to package structs
 func (cs *ConfigService) GetConfigsAsStruct(connectionID string) ([]*TableConfig, error) {
 	internalConfigs, err := cs.internal.GetConfigs(connectionID)
@@ -151,6 +181,11 @@ func (cs *ConfigService) DeleteConfig(id uint) error {
 // TestConnection tests a database connection
 func (cs *ConfigService) TestConnection(connectionID string) error {
 	return cs.internal.TestConnection(connectionID)
+}
+
+// TestConfigConnection tests a database connection by config ID
+func (cs *ConfigService) TestConfigConnection(configID uint) error {
+	return cs.internal.TestConfigConnection(configID)
 }
 
 // CRUDService wraps the existing CRUD service for the package API

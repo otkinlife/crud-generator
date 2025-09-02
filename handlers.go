@@ -328,10 +328,28 @@ func (cg *CRUDGenerator) handleGetConfigByName(c *gin.Context) {
 }
 
 func (cg *CRUDGenerator) handleGetConfig(c *gin.Context) {
-	// Implementation similar to handleGetConfigByName but by ID
-	c.JSON(501, APIResponse{
-		Success: false,
-		Error:   "Not implemented yet",
+	idStr := c.Param("id")
+	id, err := strconv.ParseUint(idStr, 10, 32)
+	if err != nil {
+		c.JSON(400, APIResponse{
+			Success: false,
+			Error:   "Invalid ID",
+		})
+		return
+	}
+
+	config, err := cg.services.ConfigService.GetConfigByIDAsStruct(uint(id))
+	if err != nil {
+		c.JSON(404, APIResponse{
+			Success: false,
+			Error:   err.Error(),
+		})
+		return
+	}
+
+	c.JSON(200, APIResponse{
+		Success: true,
+		Data:    config,
 	})
 }
 
@@ -395,10 +413,27 @@ func (cg *CRUDGenerator) handleDeleteConfig(c *gin.Context) {
 }
 
 func (cg *CRUDGenerator) handleTestConfigConnection(c *gin.Context) {
-	// Implementation for testing config connection
-	c.JSON(501, APIResponse{
-		Success: false,
-		Error:   "Not implemented yet",
+	idStr := c.Param("id")
+	id, err := strconv.ParseUint(idStr, 10, 32)
+	if err != nil {
+		c.JSON(400, APIResponse{
+			Success: false,
+			Error:   "Invalid ID",
+		})
+		return
+	}
+
+	if err := cg.services.ConfigService.TestConfigConnection(uint(id)); err != nil {
+		c.JSON(400, APIResponse{
+			Success: false,
+			Error:   err.Error(),
+		})
+		return
+	}
+
+	c.JSON(200, APIResponse{
+		Success: true,
+		Message: "Configuration connection test successful",
 	})
 }
 
