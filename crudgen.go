@@ -35,6 +35,76 @@ type Config struct {
 	UIBasePath string `json:"ui_base_path"`
 	// API settings
 	APIBasePath string `json:"api_base_path"`
+
+	// Middleware configuration
+	MiddlewareConfig *MiddlewareConfig `json:"-"` // Not serialized, only for runtime
+}
+
+// MiddlewareConfig holds middleware configuration
+type MiddlewareConfig struct {
+	// Global middlewares applied to all routes
+	GlobalMiddlewares []gin.HandlerFunc `json:"-"`
+
+	// API-specific middlewares
+	APIMiddlewares []gin.HandlerFunc `json:"-"`
+
+	// UI-specific middlewares
+	UIMiddlewares []gin.HandlerFunc `json:"-"`
+
+	// Route-specific middlewares
+	RouteMiddlewares map[string][]gin.HandlerFunc `json:"-"`
+
+	// Public routes (skip global middlewares)
+	PublicRoutes []string `json:"public_routes"`
+}
+
+// MiddlewareBuilder provides fluent API for middleware configuration
+type MiddlewareBuilder struct {
+	config *MiddlewareConfig
+}
+
+// NewMiddlewareBuilder creates a new middleware builder
+func NewMiddlewareBuilder() *MiddlewareBuilder {
+	return &MiddlewareBuilder{
+		config: &MiddlewareConfig{
+			RouteMiddlewares: make(map[string][]gin.HandlerFunc),
+		},
+	}
+}
+
+// Global adds global middlewares applied to all routes
+func (mb *MiddlewareBuilder) Global(middlewares ...gin.HandlerFunc) *MiddlewareBuilder {
+	mb.config.GlobalMiddlewares = append(mb.config.GlobalMiddlewares, middlewares...)
+	return mb
+}
+
+// API adds middlewares applied to API routes only
+func (mb *MiddlewareBuilder) API(middlewares ...gin.HandlerFunc) *MiddlewareBuilder {
+	mb.config.APIMiddlewares = append(mb.config.APIMiddlewares, middlewares...)
+	return mb
+}
+
+// UI adds middlewares applied to UI routes only
+func (mb *MiddlewareBuilder) UI(middlewares ...gin.HandlerFunc) *MiddlewareBuilder {
+	mb.config.UIMiddlewares = append(mb.config.UIMiddlewares, middlewares...)
+	return mb
+}
+
+// Route adds middlewares for specific route patterns
+func (mb *MiddlewareBuilder) Route(pattern string, middlewares ...gin.HandlerFunc) *MiddlewareBuilder {
+	mb.config.RouteMiddlewares[pattern] = append(mb.config.RouteMiddlewares[pattern], middlewares...)
+	return mb
+}
+
+// Public marks routes as public (skip global middlewares)
+func (mb *MiddlewareBuilder) Public(routes ...string) *MiddlewareBuilder {
+	mb.config.PublicRoutes = append(mb.config.PublicRoutes, routes...)
+	return mb
+}
+
+// Build returns the middleware configuration
+func (mb *MiddlewareBuilder) Build() *MiddlewareConfig {
+	return mb.config
 }
 
 // DatabaseConnection represents a database connection configuration

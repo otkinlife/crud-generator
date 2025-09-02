@@ -17,14 +17,21 @@ var webuiFS embed.FS
 
 // registerAPIRoutes registers all API routes
 func (cg *CRUDGenerator) registerAPIRoutes(router *gin.Engine) {
-	// Apply middleware
+	// Apply global middlewares first
+	if cg.config.MiddlewareConfig != nil {
+		for _, middleware := range cg.config.MiddlewareConfig.GlobalMiddlewares {
+			router.Use(middleware)
+		}
+	}
+
+	// Apply default middleware
 	router.Use(middleware.LoggerMiddleware())
 
 	// Enable CORS
 	router.Use(func(c *gin.Context) {
 		c.Header("Access-Control-Allow-Origin", "*")
 		c.Header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-		c.Header("Access-Control-Allow-Headers", "Content-Type")
+		c.Header("Access-Control-Allow-Headers", "Content-Type, Authorization")
 
 		if c.Request.Method == "OPTIONS" {
 			c.AbortWithStatus(204)
@@ -34,8 +41,20 @@ func (cg *CRUDGenerator) registerAPIRoutes(router *gin.Engine) {
 		c.Next()
 	})
 
-	// API routes - 无需认证
+	// API routes group
 	api := router.Group(cg.config.APIBasePath)
+
+	// Apply API-specific middlewares
+	if cg.config.MiddlewareConfig != nil {
+		// Apply API middlewares to the group
+		for _, middleware := range cg.config.MiddlewareConfig.APIMiddlewares {
+			api.Use(middleware)
+		}
+
+		// Apply conditional middlewares based on public routes
+		api.Use(cg.createConditionalMiddleware())
+	}
+
 	{
 		// Database connections
 		api.GET("/connections", cg.handleListConnections)
@@ -44,6 +63,7 @@ func (cg *CRUDGenerator) registerAPIRoutes(router *gin.Engine) {
 
 		// Table configurations
 		configs := api.Group("/configs")
+		cg.applyRouteMiddlewares(configs, "/configs")
 		{
 			configs.GET("", cg.handleListConfigs)
 			configs.POST("", cg.handleCreateConfig)
@@ -55,16 +75,27 @@ func (cg *CRUDGenerator) registerAPIRoutes(router *gin.Engine) {
 		}
 
 		// CRUD operations
-		api.GET("/:config_name/list", cg.handleCRUDList)
-		api.POST("/:config_name/create", cg.handleCRUDCreate)
-		api.PUT("/:config_name/update/:id", cg.handleCRUDUpdate)
-		api.DELETE("/:config_name/delete/:id", cg.handleCRUDDelete)
-		api.GET("/:config_name/dict/:field", cg.handleCRUDDict)
+		crudRoutes := api.Group("/:config_name")
+		cg.applyRouteMiddlewares(crudRoutes, "/crud")
+		{
+			crudRoutes.GET("/list", cg.handleCRUDList)
+			crudRoutes.POST("/create", cg.handleCRUDCreate)
+			crudRoutes.PUT("/update/:id", cg.handleCRUDUpdate)
+			crudRoutes.DELETE("/delete/:id", cg.handleCRUDDelete)
+			crudRoutes.GET("/dict/:field", cg.handleCRUDDict)
+		}
 	}
 }
 
 // registerUIRoutes registers all UI routes
 func (cg *CRUDGenerator) registerUIRoutes(router *gin.Engine) {
+	// Apply UI-specific middlewares
+	if cg.config.MiddlewareConfig != nil {
+		for _, middleware := range cg.config.MiddlewareConfig.UIMiddlewares {
+			router.Use(middleware)
+		}
+	}
+
 	// Get embedded file system
 	webuiSubFS, err := fs.Sub(webuiFS, "webui")
 	if err != nil {
@@ -75,14 +106,60 @@ func (cg *CRUDGenerator) registerUIRoutes(router *gin.Engine) {
 	router.StaticFS(cg.config.UIBasePath+"/static", http.FS(webuiSubFS))
 
 	// Main UI routes
-	router.GET(cg.config.UIBasePath, cg.handleUIIndex)
-	router.GET(cg.config.UIBasePath+"/", cg.handleUIIndex)
-	router.GET(cg.config.UIBasePath+"/crud/:config_name", cg.handleUICRUDPage)
+	uiGroup := router.Group(cg.config.UIBasePath)
+	cg.applyRouteMiddlewares(uiGroup, "/ui")
+	{
+		uiGroup.GET("", cg.handleUIIndex)
+		uiGroup.GET("/", cg.handleUIIndex)
+		uiGroup.GET("/crud/:config_name", cg.handleUICRUDPage)
 
-	// Serve individual files
-	router.GET(cg.config.UIBasePath+"/app.js", cg.handleUIFile("app.js"))
-	router.GET(cg.config.UIBasePath+"/crud.js", cg.handleUICRUDJS)
-	router.GET(cg.config.UIBasePath+"/crud.html", cg.handleUIFile("crud.html"))
+		// Serve individual files
+		uiGroup.GET("/app.js", cg.handleUIFile("app.js"))
+		uiGroup.GET("/crud.js", cg.handleUICRUDJS)
+		uiGroup.GET("/crud.html", cg.handleUIFile("crud.html"))
+	}
+}
+
+// createConditionalMiddleware creates middleware that conditionally applies based on public routes
+func (cg *CRUDGenerator) createConditionalMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		// Check if current route is public
+		if cg.isPublicRoute(c.Request.URL.Path) {
+			c.Next()
+			return
+		}
+
+		// Apply additional middlewares for non-public routes
+		// This is where authentication/authorization would typically be applied
+		c.Next()
+	}
+}
+
+// applyRouteMiddlewares applies route-specific middlewares
+func (cg *CRUDGenerator) applyRouteMiddlewares(group *gin.RouterGroup, pattern string) {
+	if cg.config.MiddlewareConfig == nil {
+		return
+	}
+
+	if middlewares, exists := cg.config.MiddlewareConfig.RouteMiddlewares[pattern]; exists {
+		for _, middleware := range middlewares {
+			group.Use(middleware)
+		}
+	}
+}
+
+// isPublicRoute checks if a route is marked as public
+func (cg *CRUDGenerator) isPublicRoute(path string) bool {
+	if cg.config.MiddlewareConfig == nil {
+		return false
+	}
+
+	for _, publicRoute := range cg.config.MiddlewareConfig.PublicRoutes {
+		if strings.HasPrefix(path, publicRoute) {
+			return true
+		}
+	}
+	return false
 }
 
 // UI handlers
