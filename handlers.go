@@ -554,7 +554,7 @@ func (cg *CRUDGenerator) handleCRUDList(c *gin.Context) {
 	// Parse sort parameters
 	if sortField := c.Query("sort"); sortField != "" {
 		sortOrder := SortOrderASC
-		if order := c.Query("order"); order != "" && order == "desc" {
+		if order := c.Query("order"); order != "" && strings.ToLower(order) == "desc" {
 			sortOrder = SortOrderDESC
 		}
 		params.Sort = []SortField{

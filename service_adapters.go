@@ -2,6 +2,7 @@ package crudgen
 
 import (
 	"fmt"
+
 	"github.com/otkinlife/crud-generator/database"
 	"github.com/otkinlife/crud-generator/models"
 	"github.com/otkinlife/crud-generator/services"
@@ -218,9 +219,18 @@ func (cs *CRUDService) List(configName string, params *QueryParams) (*QueryResul
 	if len(params.Sort) > 0 {
 		internalSort := make([]types.SortField, len(params.Sort))
 		for i, sort := range params.Sort {
+			// Convert the sort order from main package format to internal package format
+			var internalOrder types.SortOrder
+			switch sort.Order {
+			case SortOrderDESC: // "desc"
+				internalOrder = types.SortOrderDESC // "DESC"
+			default:
+				internalOrder = types.SortOrderASC // "ASC"
+			}
+
 			internalSort[i] = types.SortField{
 				Field: sort.Field,
-				Order: types.SortOrder(sort.Order),
+				Order: internalOrder,
 			}
 		}
 		internalParams.Sort = internalSort
